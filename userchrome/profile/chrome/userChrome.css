@@ -3,11 +3,12 @@
  * Firefox's minimal-ui taskbar-tab window shows a slim toolbar with a read-only
  * address bar plus navigation/extension buttons. We hide the entire customizable
  * toolbar area (#nav-bar-customization-target), which holds all of those buttons,
- * for a clean app titlebar. The window controls and the app (hamburger) menu live
- * OUTSIDE that container, so they remain.
+ * for a clean app titlebar — EXCEPT the site-identity/permission cluster, which
+ * we keep (see the "Permissions" section below). The window controls and the app
+ * (hamburger) menu live OUTSIDE that container, so they remain.
  */
 
-:root[taskbartab] #nav-bar-customization-target > *:not(.titlebar-buttonbox-container) {
+:root[taskbartab] #nav-bar-customization-target > *:not(.titlebar-buttonbox-container):not(#urlbar-container) {
   display: none !important;
 }
 
@@ -22,6 +23,17 @@
   --lwt-text-color: #f2f2f2 !important;
   --toolbarbutton-icon-fill: #f2f2f2 !important;
   --chrome-content-separator-color: #000000 !important;
+  /* The urlbar uses its own --toolbar-field-* palette. The light manifest theme
+     makes that a light pill with dark icons, which would be invisible once we
+     strip the pill background on the black bar. Force the field transparent with
+     light icons so the kept identity/permission cluster reads correctly. */
+  --toolbar-field-background-color: transparent !important;
+  --toolbar-field-color: #f2f2f2 !important;
+  --toolbar-field-border-color: transparent !important;
+  --toolbar-field-focus-background-color: transparent !important;
+  --toolbar-field-focus-color: #f2f2f2 !important;
+  --toolbar-field-focus-border-color: transparent !important;
+  --urlbar-box-bgcolor: transparent !important;
 }
 
 :root[taskbartab] #navigator-toolbox,
@@ -33,4 +45,100 @@
 
 :root[taskbartab] .titlebar-button {
   fill: #f2f2f2 !important;
+}
+
+/* Remove the titlebar dead space. Firefox flanks the toolbar with
+   `.titlebar-spacer { width: 40px }` elements; the rule that normally strips
+   them (#navigator-toolbox:not([tabs-hidden]) > #nav-bar > …) is inert in
+   taskbar-tab windows because their tabs are hidden, so the 40px spacers remain
+   as empty gaps on both sides. Hide the spacers only — NOT the
+   .titlebar-buttonbox-container — so this is independent of which side the OS
+   places the window-control buttons on (left here, right elsewhere). */
+:root[taskbartab] .titlebar-spacer {
+  display: none !important;
+}
+
+/* ── Permissions: keep Firefox's native site-identity / permission cluster ─────
+ *
+ * Camera/microphone/location prompts are PopupNotifications that anchor to the
+ * icons in #notification-popup-box, which lives inside the urlbar. The per-site
+ * permission controls (grant/revoke) live in #identity-box (the clickable lock,
+ * which contains #identity-permission-box → the permission-granted dot and the
+ * WebRTC sharing indicators). Hiding the whole urlbar removed all of that, so
+ * the prompt never had a visible anchor (it never appeared) and there was no way
+ * to review or revoke grants afterwards — and Firefox's settings page can only
+ * *remove* camera/mic/location entries, never *add* one, so the in-page prompt
+ * is the only way to grant.
+ *
+ * Fix: keep #urlbar-container, but collapse the urlbar to just the identity +
+ * permission + notification-anchor cluster and drop the address-bar pill, so it
+ * reads as a single clickable icon at the left of the titlebar (like a
+ * Chromium/Edge installed-app window). Clicking it opens Firefox's own per-site
+ * panels; the camera/mic prompt drops down from the same spot.
+ */
+
+/* Collapse the urlbar to content width and strip its address-bar pill so it is
+   a bare icon on the black titlebar rather than a full-width input field. The
+   urlbar normally reserves width and carries margins/padding for a full address
+   field; zero all of it so the kept identity icon sits flush with no dead gap. */
+:root[taskbartab] #urlbar-container {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+:root[taskbartab] #urlbar {
+  min-width: 0 !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+:root[taskbartab] #urlbar .urlbar-input-container {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+:root[taskbartab] #urlbar,
+:root[taskbartab] #urlbar[focused],
+:root[taskbartab] #urlbar .urlbar-background {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Trim the urlbar down to JUST the identity / permission cluster.
+ *
+ * The urlbar is the <moz-urlbar id="urlbar"> custom element (UrlbarInput.mjs).
+ * At runtime it builds an internal <div class="urlbar-input-container"> and
+ * MOVES the authored children (#identity-box, the editable .urlbar-input-box,
+ * #page-action-buttons, …) into it. So we must hide each unwanted piece by its
+ * own id/class — a blanket "#urlbar > *:not(#identity-box)" would also match the
+ * generated .urlbar-input-container and take the identity box (with the
+ * permission anchors inside it) down with it.
+ *
+ * #notification-popup-box — the camera/mic/geo prompt anchors — is nested INSIDE
+ * #identity-box, which we never hide, so prompts keep a visible anchor and the
+ * lock stays clickable for grant/revoke.
+ *
+ * #page-action-buttons holds Firefox's "Remove tab from taskbar" button
+ * (#taskbar-tabs-button), which ejects/uninstalls the app and caused weird
+ * issues — plus zoom/star/reader/PiP that a single-app window has no use for.
+ * We also drop the read-only domain field for the fully chromeless look.
+ *
+ * #trust-icon-container (the shield → "Connection secure / Enhanced Tracking
+ * Protection / Firefox is on guard" panel) and #tracking-protection-icon-container
+ * are the SSL/anti-tracking entry points — not permissions. We hide both; the
+ * kept #identity-box is the one that opens the per-site permission sliders. */
+:root[taskbartab] #page-action-buttons,
+:root[taskbartab] #taskbar-tabs-button,
+:root[taskbartab] #trust-icon-container,
+:root[taskbartab] #tracking-protection-icon-container,
+:root[taskbartab] #urlbar .urlbar-input-box,
+:root[taskbartab] #urlbar .urlbar-go-button,
+:root[taskbartab] #urlbar .searchmode-switcher,
+:root[taskbartab] #urlbar-label-box,
+:root[taskbartab] #urlbar-search-mode-indicator,
+:root[taskbartab] #urlbar-revert-button-container {
+  display: none !important;
 }
