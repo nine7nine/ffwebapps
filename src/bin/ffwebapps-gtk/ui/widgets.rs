@@ -64,9 +64,10 @@ scrollbar > range > trough > slider { background-color: rgba(255,255,255,0.25); 
 /* libadwaita dims section titles/subtitles/placeholders via --dim-opacity \
    (~0.55), which is unreadable on the dark glass — raise it. */\
 :root, window { --dim-opacity: 0.85; }\
-/* section (preferences-group) header titles/descriptions use OUR accent, not \
-   libadwaita's dim system grey — the app is self-themed */\
-preferencesgroup box.header label { color: @accent_color; opacity: 1; }\
+/* ONLY the preferences-group section TITLE (first label of the group's own \
+   header — `> box > box.header` excludes row headers; `:first-child` excludes \
+   the description) uses our accent instead of libadwaita's dim grey. */\
+preferencesgroup > box > box.header label:first-child { color: @accent_color; opacity: 1; }\
 window:backdrop, headerbar:backdrop, .toolbar:backdrop { color: rgba(255,255,255,0.95); }\
 ";
 
