@@ -10,10 +10,11 @@ use gtk::glib;
 
 use crate::core;
 use crate::ui::live_control;
+use crate::ui::widgets;
 use crate::ui::window::Ui;
 
-/// Build the editor navigation page for `site`.
-pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
+/// Present the per-app editor as a dialog over the main window.
+pub fn present(ui: &Rc<Ui>, site: Site) {
     let header = adw::HeaderBar::new();
     let launch_btn = gtk::Button::with_label("Launch");
     let uninstall_btn = gtk::Button::builder()
@@ -28,11 +29,11 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     header.pack_start(&uninstall_btn);
     header.pack_end(&save_btn);
 
-    let page = adw::PreferencesPage::new();
+    let (scroll, body) = widgets::content();
 
     // --- Live control (connects if the app is running) ---------------------
     let (live_group, live_conn) = live_control::build(&site);
-    page.add(&live_group);
+    body.append(&live_group);
 
     let cfg = &site.config;
 
@@ -46,7 +47,7 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     general.add(&desc_row);
     general.add(&start_row);
     general.add(&icon_row);
-    page.add(&general);
+    body.append(&general);
 
     // --- Behaviour ---------------------------------------------------------
     let behaviour = group("Behaviour", None);
@@ -58,7 +59,7 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     behaviour.add(&hidden_sw);
     behaviour.add(&browser_sw);
     behaviour.add(&ext_sw);
-    page.add(&behaviour);
+    body.append(&behaviour);
 
     // --- Performance -------------------------------------------------------
     let performance = group("Performance", None);
@@ -83,7 +84,7 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     performance.add(&sw_sw);
     performance.add(&sched_combo);
     performance.add(&prio_spin);
-    page.add(&performance);
+    body.append(&performance);
 
     // --- Advanced ----------------------------------------------------------
     let advanced = group("Advanced", None);
@@ -100,7 +101,7 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     advanced.add(&keys_row);
     advanced.add(&urlh_row);
     advanced.add(&proth_row);
-    page.add(&advanced);
+    body.append(&advanced);
 
     // --- Update on save ----------------------------------------------------
     let update = group("Update on save", Some("Re-fetch from the network when saving (off = offline save)"));
@@ -108,17 +109,19 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     let upd_icons_sw = switch_row("Update icons", None, false);
     update.add(&upd_manifest_sw);
     update.add(&upd_icons_sw);
-    page.add(&update);
+    body.append(&update);
 
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
+    toolbar.set_content(Some(&scroll));
 
     let page_title = core::site_display_name(&site);
-    let nav_page = adw::NavigationPage::builder()
+    let editor_dialog = adw::Dialog::builder()
         .title(&page_title)
-        .child(&toolbar)
+        .content_width(880)
+        .content_height(820)
         .build();
+    editor_dialog.set_child(Some(&toolbar));
 
     // --- Save --------------------------------------------------------------
     save_btn.connect_clicked(glib::clone!(
@@ -197,6 +200,7 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     uninstall_btn.connect_clicked(glib::clone!(
         #[strong] ui,
         #[strong(rename_to = name)] uninstall_name,
+        #[strong(rename_to = editor)] editor_dialog,
         move |_| {
             let heading = format!("Uninstall {name}?");
             let dialog = adw::AlertDialog::new(
@@ -208,17 +212,18 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
             dialog.set_response_appearance("uninstall", adw::ResponseAppearance::Destructive);
             dialog.set_default_response(Some("cancel"));
             dialog.set_close_response("cancel");
-            dialog.connect_response(None, glib::clone!(#[strong] ui, move |_, response| {
+            dialog.connect_response(None, glib::clone!(#[strong] ui, #[strong] editor, move |_, response| {
                 if response != "uninstall" {
                     return;
                 }
                 core::spawn(
                     move || core::uninstall_site(id),
-                    glib::clone!(#[strong] ui, move |res: anyhow::Result<()>| {
+                    glib::clone!(#[strong] ui, #[strong] editor, move |res: anyhow::Result<()>| {
                         match res {
                             Ok(()) => {
                                 ui.toast("Web app uninstalled");
-                                ui.go_back();
+                                ui.refresh_list();
+                                editor.close();
                             }
                             Err(error) => ui.toast(&format!("Uninstall failed: {error}")),
                         }
@@ -229,14 +234,14 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
         }
     ));
 
-    // Tear down the live connection when this editor page goes away.
-    nav_page.connect_hidden(glib::clone!(#[strong] live_conn, move |_| {
+    // Tear down the live connection when the editor dialog closes.
+    editor_dialog.connect_closed(glib::clone!(#[strong] live_conn, move |_| {
         if let Some(live) = live_conn.borrow_mut().take() {
             live.close();
         }
     }));
 
-    nav_page
+    editor_dialog.present(Some(ui.anchor()));
 }
 
 // --- small builders --------------------------------------------------------

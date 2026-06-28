@@ -1,5 +1,6 @@
-//! Profiles management page: list profiles with create / edit / remove.
-//! The nil "Default" profile can only be cleared (its apps removed), not deleted.
+//! Profiles tab: list profiles with create / edit / remove and a per-profile
+//! CSS/JS injection editor. The nil "Default" profile can only be cleared (its
+//! apps removed), not deleted. Create/edit/remove use dialogs.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,35 +11,32 @@ use gtk::glib;
 use ulid::Ulid;
 
 use crate::core;
+use crate::ui::widgets;
 use crate::ui::window::Ui;
 
 /// Rows currently shown, so we can clear them on rebuild.
 type Rows = Rc<RefCell<Vec<adw::ActionRow>>>;
 
-/// Build the profiles navigation page.
-pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
-    let header = adw::HeaderBar::new();
-    let add_btn = gtk::Button::builder()
-        .icon_name("list-add-symbolic")
-        .tooltip_text("New profile")
-        .build();
-    header.pack_end(&add_btn);
+/// Build the profiles tab content.
+pub fn build_content(ui: &Rc<Ui>) -> gtk::ScrolledWindow {
+    let actions = adw::PreferencesGroup::new();
+    let add_row = adw::ActionRow::builder().title("New profile").activatable(true).build();
+    add_row.add_prefix(&gtk::Image::from_icon_name("list-add-symbolic"));
+    actions.add(&add_row);
 
-    let group = adw::PreferencesGroup::new();
-    let page = adw::PreferencesPage::new();
-    page.add(&group);
+    let group = adw::PreferencesGroup::builder().title("Profiles").build();
 
     let rows: Rows = Rc::new(RefCell::new(Vec::new()));
     populate(ui, &group, &rows);
 
-    add_btn.connect_clicked(glib::clone!(#[strong] ui, #[weak] group, #[strong] rows, move |_| {
+    add_row.connect_activated(glib::clone!(#[strong] ui, #[weak] group, #[strong] rows, move |_| {
         present_form(&ui, &group, &rows, None);
     }));
 
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
-    adw::NavigationPage::builder().title("Profiles").child(&toolbar).build()
+    let (scroll, body) = widgets::content();
+    body.append(&actions);
+    body.append(&group);
+    scroll
 }
 
 /// Clear and rebuild the list of profile rows from current storage.
@@ -113,8 +111,6 @@ fn present_form(ui: &Rc<Ui>, group: &adw::PreferencesGroup, rows: &Rows, edit_id
     let form = adw::PreferencesGroup::new();
     form.add(&name_row);
     form.add(&desc_row);
-    let page = adw::PreferencesPage::new();
-    page.add(&form);
 
     let header = adw::HeaderBar::new();
     let cancel_btn = gtk::Button::with_label("Cancel");
@@ -122,9 +118,11 @@ fn present_form(ui: &Rc<Ui>, group: &adw::PreferencesGroup, rows: &Rows, edit_id
     header.pack_start(&cancel_btn);
     header.pack_end(&ok_btn);
 
+    let (scroll, body) = widgets::content();
+    body.append(&form);
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
+    toolbar.set_content(Some(&scroll));
 
     let dialog = adw::Dialog::builder().title(title).content_width(420).build();
     dialog.set_child(Some(&toolbar));

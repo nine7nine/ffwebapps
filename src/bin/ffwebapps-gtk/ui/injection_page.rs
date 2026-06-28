@@ -1,6 +1,6 @@
-//! Per-profile CSS/JS injection editor. Edits `ffwebapps.css` / `ffwebapps.js`
-//! at the profile root; the runtime reads them once at startup, so changes
-//! apply on the next launch. Injection is per-profile, not per-app.
+//! Per-profile CSS/JS injection editor, shown as a dialog. Edits
+//! `ffwebapps.css` / `ffwebapps.js` at the profile root; the runtime reads them
+//! once at startup, so changes apply on the next launch. Per-profile, not per-app.
 
 use std::rc::Rc;
 
@@ -9,10 +9,11 @@ use gtk::glib;
 use ulid::Ulid;
 
 use crate::core;
+use crate::ui::widgets;
 use crate::ui::window::Ui;
 
-/// Build the injection editor page for a profile.
-pub fn build(ui: &Rc<Ui>, profile: Ulid, profile_name: String) -> adw::NavigationPage {
+/// Present the injection editor dialog for a profile.
+pub fn present(ui: &Rc<Ui>, profile: Ulid, profile_name: String) {
     let (css, js) = core::read_injection(ui.dirs(), profile);
 
     let header = adw::HeaderBar::new();
@@ -38,9 +39,18 @@ pub fn build(ui: &Rc<Ui>, profile: Ulid, profile_name: String) -> adw::Navigatio
     let js_view = code_view(&js);
     js_group.add(&code_area(&js_view));
 
-    let page = adw::PreferencesPage::new();
-    page.add(&css_group);
-    page.add(&js_group);
+    let (scroll, body) = widgets::content();
+    body.append(&css_group);
+    body.append(&js_group);
+
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+    toolbar.add_top_bar(&banner);
+    toolbar.set_content(Some(&scroll));
+
+    let title = format!("Injection · {profile_name}");
+    let dialog = adw::Dialog::builder().title(&title).content_width(720).content_height(640).build();
+    dialog.set_child(Some(&toolbar));
 
     save_btn.connect_clicked(glib::clone!(
         #[strong] ui, #[weak] save_btn, #[weak] css_view, #[weak] js_view,
@@ -64,13 +74,7 @@ pub fn build(ui: &Rc<Ui>, profile: Ulid, profile_name: String) -> adw::Navigatio
         }
     ));
 
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.add_top_bar(&banner);
-    toolbar.set_content(Some(&page));
-
-    let title = format!("Injection · {profile_name}");
-    adw::NavigationPage::builder().title(&title).child(&toolbar).build()
+    dialog.present(Some(ui.anchor()));
 }
 
 fn code_view(text: &str) -> gtk::TextView {

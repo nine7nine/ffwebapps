@@ -1,9 +1,11 @@
-//! Main window and navigation controller.
+//! Main window.
 //!
-//! Layout: `AdwApplicationWindow` → `AdwToastOverlay` → `AdwNavigationView`.
-//! The root page lists web apps grouped by profile; activating a row pushes the
-//! per-app editor. The header offers Profiles / Runtime / Install. `Ui` (held in
-//! an `Rc`) owns the shared widgets and the navigation / refresh logic.
+//! Layout: `AdwApplicationWindow` → `AdwToastOverlay` → `AdwToolbarView` with a
+//! **static** header (app name + window controls only), an `AdwViewSwitcher`
+//! (tabs) as a second bar, and an `AdwViewStack` of the four sections
+//! (Web Apps / Profiles / Runtime / Settings). Per-section actions live in the
+//! body; detail editors (per-app, injection) open as dialogs. `Ui` (in an `Rc`)
+//! owns the shared widgets and the app-list refresh.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -15,14 +17,13 @@ use gtk::glib;
 use ulid::Ulid;
 
 use crate::core;
-use crate::ui::{app_editor, injection_page, install_dialog, profiles_page, runtime_page, settings_page};
+use crate::ui::{app_editor, injection_page, install_dialog, profiles_page, runtime_page, settings_page, widgets};
 
 pub struct Ui {
     dirs: ProjectDirs,
     toasts: adw::ToastOverlay,
-    nav: adw::NavigationView,
-    list_page: adw::PreferencesPage,
-    list_groups: RefCell<Vec<adw::PreferencesGroup>>,
+    apps_body: gtk::Box,
+    apps_groups: RefCell<Vec<adw::PreferencesGroup>>,
 }
 
 /// Build and present the main window. Wired to `Application::activate`.
@@ -32,49 +33,59 @@ pub fn build(app: &adw::Application) {
         Err(error) => return present_fatal(app, &error.to_string()),
     };
 
-    let nav = adw::NavigationView::new();
     let toasts = adw::ToastOverlay::new();
-    toasts.set_child(Some(&nav));
-
-    let list_page = adw::PreferencesPage::new();
-
-    let header = adw::HeaderBar::new();
-    header.set_title_widget(Some(&adw::WindowTitle::new("ffwebapps", "Web App Manager")));
-    let profiles_btn = gtk::Button::with_label("Profiles");
-    let runtime_btn = gtk::Button::with_label("Runtime");
-    let settings_btn = gtk::Button::with_label("Settings");
-    let install_btn = gtk::Button::builder().label("Install").css_classes(["suggested-action"]).build();
-    header.pack_start(&profiles_btn);
-    header.pack_start(&runtime_btn);
-    header.pack_start(&settings_btn);
-    header.pack_end(&install_btn);
-
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&list_page));
-    let root = adw::NavigationPage::builder().title("Web Apps").child(&toolbar).build();
-    nav.push(&root);
+    let (apps_scroll, apps_body) = widgets::content();
 
     let ui = Rc::new(Ui {
         dirs,
         toasts: toasts.clone(),
-        nav: nav.clone(),
-        list_page,
-        list_groups: RefCell::new(Vec::new()),
+        apps_body: apps_body.clone(),
+        apps_groups: RefCell::new(Vec::new()),
     });
+
+    // Install action at the top of the Web Apps tab.
+    let install_group = adw::PreferencesGroup::new();
+    let install_row = adw::ActionRow::builder()
+        .title("Install web app")
+        .subtitle("Add a site as a web app")
+        .activatable(true)
+        .build();
+    install_row.add_prefix(&gtk::Image::from_icon_name("list-add-symbolic"));
+    install_group.add(&install_row);
+    apps_body.append(&install_group);
+    install_row.connect_activated(glib::clone!(#[strong] ui, move |_| ui.open_install()));
+
     ui.refresh_list();
 
-    // Refresh the list when returning to it (e.g. after an edit/install/uninstall).
-    nav.connect_popped(glib::clone!(#[strong] ui, move |_, _| ui.refresh_list()));
-    install_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_install()));
-    profiles_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_profiles()));
-    runtime_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_runtime()));
-    settings_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_settings()));
+    // The other three tabs.
+    let profiles_content = profiles_page::build_content(&ui);
+    let runtime_content = runtime_page::build_content(&ui);
+    let settings_content = settings_page::build_content(&ui);
+
+    let stack = adw::ViewStack::new();
+    stack.add_titled_with_icon(&apps_scroll, Some("apps"), "Web Apps", "applications-internet-symbolic");
+    stack.add_titled_with_icon(&profiles_content, Some("profiles"), "Profiles", "system-users-symbolic");
+    stack.add_titled_with_icon(&runtime_content, Some("runtime"), "Runtime", "system-run-symbolic");
+    stack.add_titled_with_icon(&settings_content, Some("settings"), "Settings", "preferences-system-symbolic");
+
+    let switcher = adw::ViewSwitcher::builder()
+        .stack(&stack)
+        .policy(adw::ViewSwitcherPolicy::Wide)
+        .build();
+
+    // Static header: just the app name (window title) + window controls.
+    let header = adw::HeaderBar::new();
+
+    let toolbar = adw::ToolbarView::new();
+    toolbar.add_top_bar(&header);
+    toolbar.add_top_bar(&switcher);
+    toolbar.set_content(Some(&stack));
+    toasts.set_child(Some(&toolbar));
 
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("ffwebapps")
-        .default_width(860)
+        .default_width(980)
         .default_height(760)
         .content(&toasts)
         .build();
@@ -97,36 +108,10 @@ impl Ui {
         self.toasts.add_toast(adw::Toast::new(text));
     }
 
-    /// Pop the current page (returns to the previous one; triggers a refresh).
-    pub fn go_back(&self) {
-        self.nav.pop();
-    }
-
-    fn open_install(self: &Rc<Self>) {
-        install_dialog::present(self);
-    }
-
-    fn open_profiles(self: &Rc<Self>) {
-        self.nav.push(&profiles_page::build(self));
-    }
-
-    fn open_runtime(self: &Rc<Self>) {
-        self.nav.push(&runtime_page::build(self));
-    }
-
-    fn open_settings(self: &Rc<Self>) {
-        self.nav.push(&settings_page::build(self));
-    }
-
-    /// Open the per-profile CSS/JS injection editor (called from the profiles page).
-    pub fn open_injection(self: &Rc<Self>, profile: Ulid, name: String) {
-        self.nav.push(&injection_page::build(self, profile, name));
-    }
-
-    /// Rebuild the profile-grouped app list from current storage.
+    /// Rebuild the profile-grouped app list (kept below the Install row).
     pub fn refresh_list(self: &Rc<Self>) {
-        for group in self.list_groups.borrow_mut().drain(..) {
-            self.list_page.remove(&group);
+        for group in self.apps_groups.borrow_mut().drain(..) {
+            self.apps_body.remove(&group);
         }
 
         let storage = match core::load_storage(&self.dirs) {
@@ -134,13 +119,13 @@ impl Ui {
             Err(error) => {
                 let group = adw::PreferencesGroup::builder().title("Failed to load web apps").build();
                 group.set_description(Some(&error.to_string()));
-                self.list_page.add(&group);
-                self.list_groups.borrow_mut().push(group);
+                self.apps_body.append(&group);
+                self.apps_groups.borrow_mut().push(group);
                 return;
             }
         };
 
-        let mut groups = self.list_groups.borrow_mut();
+        let mut groups = self.apps_groups.borrow_mut();
         for profile in storage.profiles.values() {
             let group = adw::PreferencesGroup::new();
             let title = profile.name.clone().unwrap_or_else(|| "Unnamed profile".into());
@@ -154,7 +139,7 @@ impl Ui {
                 }
             }
 
-            self.list_page.add(&group);
+            self.apps_body.append(&group);
             groups.push(group);
         }
     }
@@ -192,8 +177,17 @@ impl Ui {
         row
     }
 
+    fn open_install(self: &Rc<Self>) {
+        install_dialog::present(self);
+    }
+
     fn open_editor(self: &Rc<Self>, site: Site) {
-        self.nav.push(&app_editor::build(self, site));
+        app_editor::present(self, site);
+    }
+
+    /// Open the per-profile CSS/JS injection editor (called from the profiles tab).
+    pub fn open_injection(self: &Rc<Self>, profile: Ulid, name: String) {
+        injection_page::present(self, profile, name);
     }
 }
 

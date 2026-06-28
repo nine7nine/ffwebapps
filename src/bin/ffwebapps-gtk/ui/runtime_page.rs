@@ -1,6 +1,6 @@
-//! Runtime page: show the installed runtime version and offer
-//! install / link-system-Firefox / patch / uninstall. All operations run off
-//! the main thread (install in particular downloads Firefox and is slow).
+//! Runtime tab: show the installed runtime version and offer
+//! install / link-system-Firefox / patch / uninstall (actions are body rows, so
+//! the window CSD stays static). All operations run off the main thread.
 
 use std::rc::Rc;
 
@@ -8,10 +8,11 @@ use adw::prelude::*;
 use gtk::glib;
 
 use crate::core;
+use crate::ui::widgets;
 use crate::ui::window::Ui;
 
-/// Build the runtime navigation page.
-pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
+/// Build the runtime tab content.
+pub fn build_content(ui: &Rc<Ui>) -> gtk::ScrolledWindow {
     let status_group = adw::PreferencesGroup::new();
     let status_row = adw::ActionRow::builder().title("Runtime").build();
     status_group.add(&status_row);
@@ -42,18 +43,12 @@ pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
         confirm_uninstall(&ui, &status_row);
     }));
 
-    let page = adw::PreferencesPage::new();
-    page.add(&status_group);
-    page.add(&actions);
-
-    let header = adw::HeaderBar::new();
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
-    adw::NavigationPage::builder().title("Runtime").child(&toolbar).build()
+    let (scroll, body) = widgets::content();
+    body.append(&status_group);
+    body.append(&actions);
+    scroll
 }
 
-/// Run a runtime operation off-thread, then toast + refresh the status line.
 fn run_action<F>(ui: &Rc<Ui>, status_row: &adw::ActionRow, success: &'static str, work: F)
 where
     F: FnOnce() -> anyhow::Result<()> + Send + 'static,

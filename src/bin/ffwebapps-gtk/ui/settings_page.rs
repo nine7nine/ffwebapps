@@ -1,6 +1,6 @@
-//! Global settings: the `Config` runtime toggles plus extra runtime arguments
-//! and environment variables. All are direct `Storage` edits and take effect on
-//! the next web-app launch.
+//! Global settings tab: the `Config` runtime toggles plus extra runtime
+//! arguments and environment variables. Direct `Storage` edits; take effect on
+//! the next web-app launch. Save lives in the body (the window CSD is static).
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -9,14 +9,11 @@ use adw::prelude::*;
 use gtk::glib;
 
 use crate::core;
+use crate::ui::widgets;
 use crate::ui::window::Ui;
 
-/// Build the settings navigation page.
-pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
-    let header = adw::HeaderBar::new();
-    let save_btn = gtk::Button::builder().label("Save").css_classes(["suggested-action"]).build();
-    header.pack_end(&save_btn);
-
+/// Build the settings tab content.
+pub fn build_content(ui: &Rc<Ui>) -> gtk::ScrolledWindow {
     let config = core::load_config(ui.dirs()).unwrap_or_else(|_| empty_config());
 
     let runtime_group = adw::PreferencesGroup::builder()
@@ -48,10 +45,11 @@ pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
     let vars_view = text_view(&variables_to_text(&config.variables), true);
     vars_group.add(&text_area(&vars_view));
 
-    let page = adw::PreferencesPage::new();
-    page.add(&runtime_group);
-    page.add(&args_group);
-    page.add(&vars_group);
+    let save_btn = gtk::Button::builder()
+        .label("Save settings")
+        .css_classes(["suggested-action", "pill"])
+        .halign(gtk::Align::Center)
+        .build();
 
     save_btn.connect_clicked(glib::clone!(
         #[strong] ui, #[weak] save_btn,
@@ -81,10 +79,12 @@ pub fn build(ui: &Rc<Ui>) -> adw::NavigationPage {
         }
     ));
 
-    let toolbar = adw::ToolbarView::new();
-    toolbar.add_top_bar(&header);
-    toolbar.set_content(Some(&page));
-    adw::NavigationPage::builder().title("Settings").child(&toolbar).build()
+    let (scroll, body) = widgets::content();
+    body.append(&runtime_group);
+    body.append(&args_group);
+    body.append(&vars_group);
+    body.append(&save_btn);
+    scroll
 }
 
 fn switch(title: &str, subtitle: &str, active: bool) -> adw::SwitchRow {
@@ -103,7 +103,6 @@ fn text_view(text: &str, monospace: bool) -> gtk::TextView {
     view
 }
 
-/// Wrap a text view in a scrolled, framed area suitable for a preferences group.
 fn text_area(view: &gtk::TextView) -> gtk::Frame {
     let scroll = gtk::ScrolledWindow::builder().min_content_height(120).child(view).build();
     gtk::Frame::builder().child(&scroll).build()
