@@ -15,8 +15,8 @@ pkgdesc="Run web apps as native, chromeless Firefox windows with system-tray int
 arch=('x86_64')
 url="https://github.com/nine7nine/ffwebapps"
 license=('MPL-2.0')
-depends=('firefox')
-makedepends=('rust' 'cargo' 'git')
+depends=('firefox' 'gtk4' 'libadwaita')
+makedepends=('rust' 'cargo' 'git' 'gtk4' 'libadwaita')
 optdepends=('qt6-tools: KDE tray hide/show & window control (qdbus6)'
             'plasma-workspace: KDE Plasma system tray and KWin')
 install="$pkgname.install"
@@ -38,8 +38,11 @@ build() {
   cd "$srcdir/$pkgname"
   export RUSTUP_TOOLCHAIN=stable
   export CARGO_TARGET_DIR=target
-  # CLI-only build: the binary + tray helper (no connector / native messaging).
+  # CLI build: the binary + tray helper (no connector / native messaging).
   cargo build --release --frozen --bin ffwebapps --bin ffwebapps-tray
+  # GTK4/libadwaita management GUI (separate invocation so the CLI binaries
+  # don't link gtk; the `gui` feature pulls in gtk4 + libadwaita).
+  cargo build --release --frozen --features gui --bin ffwebapps-gtk
 }
 
 package() {
@@ -48,6 +51,13 @@ package() {
   # Executables
   install -Dm755 target/release/ffwebapps      "$pkgdir/usr/bin/ffwebapps"
   install -Dm755 target/release/ffwebapps-tray "$pkgdir/usr/bin/ffwebapps-tray"
+  install -Dm755 target/release/ffwebapps-gtk  "$pkgdir/usr/bin/ffwebapps-gtk"
+
+  # Management GUI: desktop launcher + icon
+  install -Dm644 packages/gui/io.github.nine7nine.ffwebapps.desktop \
+    "$pkgdir/usr/share/applications/io.github.nine7nine.ffwebapps.desktop"
+  install -Dm644 packages/gui/io.github.nine7nine.ffwebapps.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.nine7nine.ffwebapps.svg"
 
   # Runtime + profile assets (autoconfig that enables Web Apps + external-link
   # handling, and userChrome.css for the chromeless dark titlebar).

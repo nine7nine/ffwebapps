@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ffwebapps
+GenericName=Web App Manager
+Comment=Manage web apps that run as native, chromeless Firefox windows
+Exec=ffwebapps-gtk
+Icon=io.github.nine7nine.ffwebapps
+Terminal=false
+Categories=Utility;GTK;
+Keywords=PWA;web app;Firefox;taskbar tab;site-specific browser;
+StartupNotify=true
+StartupWMClass=io.github.nine7nine.ffwebapps
