@@ -279,7 +279,11 @@ fn default_client() -> HTTPClientConfig {
 pub struct InstallParams {
     pub manifest_url: String,
     pub document_url: Option<String>,
+    /// Existing target profile (`None` = the Default/nil profile). Ignored when
+    /// `new_profile_name` is set.
     pub profile: Option<Ulid>,
+    /// If set, create a fresh profile with this name and install into it.
+    pub new_profile_name: Option<String>,
     pub name: Option<String>,
     pub launch_on_login: bool,
     pub launch_on_browser: bool,
@@ -296,10 +300,16 @@ pub fn install_site(params: InstallParams) -> Result<Ulid> {
         _ => None,
     };
 
+    // Optionally create the target profile first, then install into it.
+    let profile = match params.new_profile_name.as_deref().map(str::trim) {
+        Some(name) if !name.is_empty() => Some(create_profile(Some(name.to_owned()), None)?),
+        _ => params.profile,
+    };
+
     SiteInstallCommand {
         manifest_url,
         document_url,
-        profile: params.profile,
+        profile,
         start_url: None,
         icon_url: None,
         name: params.name,

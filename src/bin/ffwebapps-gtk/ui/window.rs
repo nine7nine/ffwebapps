@@ -7,7 +7,7 @@
 //! body; detail editors (per-app, injection) open as dialogs. `Ui` (in an `Rc`)
 //! owns the shared widgets and the app-list refresh.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use adw::prelude::*;
@@ -24,6 +24,9 @@ pub struct Ui {
     toasts: adw::ToastOverlay,
     apps_body: gtk::Box,
     apps_groups: RefCell<Vec<adw::PreferencesGroup>>,
+    /// Per-row "● running" indicators, polled so apps launched (or closed) while
+    /// the window is open update live without a manual refresh.
+    running_rows: RefCell<Vec<(Ulid, gtk::Label)>>,
 }
 
 /// Build and present the main window. Wired to `Application::activate`.
@@ -44,6 +47,7 @@ pub fn build(app: &adw::Application) {
         toasts: toasts.clone(),
         apps_body: apps_body.clone(),
         apps_groups: RefCell::new(Vec::new()),
+        running_rows: RefCell::new(Vec::new()),
     });
 
     // Install action at the top of the Web Apps tab.
@@ -87,6 +91,32 @@ pub fn build(app: &adw::Application) {
     content.append(&switcher);
     content.append(&toasts);
 
+    // Touchpad horizontal flick steps between tabs (vertical scroll still
+    // reaches the lists, since the controller only claims the horizontal axis).
+    // Accumulate the horizontal delta and switch a page once it crosses a
+    // threshold — one firm flick ≈ one page.
+    const PAGE_ORDER: [&str; 4] = ["apps", "profiles", "runtime", "settings"];
+    let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::HORIZONTAL);
+    let accum = Rc::new(Cell::new(0.0_f64));
+    scroll.connect_scroll(glib::clone!(#[weak] stack, #[strong] accum, #[upgrade_or] glib::Propagation::Proceed, move |_, dx, _| {
+        const THRESHOLD: f64 = 4.0;
+        let total = accum.get() + dx;
+        let step: i32 = if total > THRESHOLD { 1 } else if total < -THRESHOLD { -1 } else { 0 };
+        if step == 0 {
+            accum.set(total);
+            return glib::Propagation::Proceed;
+        }
+        accum.set(0.0);
+        if let Some(current) = stack.visible_child_name()
+            && let Some(index) = PAGE_ORDER.iter().position(|name| *name == current.as_str())
+        {
+            let next = (index as i32 + step).clamp(0, PAGE_ORDER.len() as i32 - 1) as usize;
+            stack.set_visible_child_name(PAGE_ORDER[next]);
+        }
+        glib::Propagation::Proceed
+    }));
+    content.add_controller(scroll);
+
     // Static header: centred app name + window controls only.
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new("ffwebapps", "")));
@@ -103,6 +133,19 @@ pub fn build(app: &adw::Application) {
         .content(&toolbar)
         .build();
     window.present();
+
+    // Poll each visible web app's runtime socket so the "● running" indicator
+    // tracks apps launched or closed while the window stays open. Cheap (a local
+    // socket connect per app); a weak ref lets the timer stop when the window is
+    // gone.
+    let weak = Rc::downgrade(&ui);
+    glib::timeout_add_seconds_local(2, move || match weak.upgrade() {
+        Some(ui) => {
+            ui.poll_running();
+            glib::ControlFlow::Continue
+        }
+        None => glib::ControlFlow::Break,
+    });
 }
 
 impl Ui {
@@ -121,11 +164,19 @@ impl Ui {
         self.toasts.add_toast(adw::Toast::new(text));
     }
 
+    /// Refresh the live "● running" indicators against each app's runtime socket.
+    fn poll_running(&self) {
+        for (id, label) in self.running_rows.borrow().iter() {
+            label.set_visible(crate::ipc::is_running(*id));
+        }
+    }
+
     /// Rebuild the profile-grouped app list (kept below the Install row).
     pub fn refresh_list(self: &Rc<Self>) {
         for group in self.apps_groups.borrow_mut().drain(..) {
             self.apps_body.remove(&group);
         }
+        self.running_rows.borrow_mut().clear();
 
         let storage = match core::load_storage(&self.dirs) {
             Ok(storage) => storage,
@@ -174,12 +225,13 @@ impl Ui {
         image.set_pixel_size(32);
         row.add_prefix(&image);
 
-        if crate::ipc::is_running(site.ulid) {
-            let running = gtk::Label::new(Some("● running"));
-            running.add_css_class("success");
-            running.add_css_class("caption");
-            row.add_suffix(&running);
-        }
+        // Always present; visibility tracks the live poll (see `poll_running`).
+        let running = gtk::Label::new(Some("● running"));
+        running.add_css_class("success");
+        running.add_css_class("caption");
+        running.set_visible(crate::ipc::is_running(site.ulid));
+        row.add_suffix(&running);
+        self.running_rows.borrow_mut().push((site.ulid, running));
 
         row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
 

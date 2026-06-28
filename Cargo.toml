@@ -25,7 +25,7 @@ portable = ["dep:phf"]
 immutable-runtime = []
 # GTK4/libadwaita management GUI (Linux only). Pulls in the optional gtk/libadwaita
 # deps declared in the Linux target table below and enables the ffwebapps-gtk bin.
-gui = ["dep:gtk", "dep:adw", "dep:async-channel"]
+gui = ["dep:gtk", "dep:adw", "dep:async-channel", "dep:sourceview5"]
 
 # Standalone GTK4 management GUI. Same crate so it can call the library in-process
 # (the core structs are #[non_exhaustive] and only constructible in-crate).
@@ -117,6 +117,8 @@ gtk = { package = "gtk4", version = "0.9", features = ["v4_10"], optional = true
 adw = { package = "libadwaita", version = "0.7", features = ["v1_5"], optional = true }
 # Marshals results from blocking worker threads back to the GTK main loop.
 async-channel = { version = "2", optional = true }
+# Syntax-highlighted code editors for the CSS/JS injection dialog (GtkSourceView 5).
+sourceview5 = { version = "0.9", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dmg = "0.1.2"

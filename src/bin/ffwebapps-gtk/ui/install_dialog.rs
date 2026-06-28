@@ -13,23 +13,33 @@ use crate::ui::window::Ui;
 /// Present the install dialog.
 pub fn present(ui: &Rc<Ui>) {
     let profiles = core::list_profiles(ui.dirs()).unwrap_or_default();
-    let profile_names: Vec<&str> = profiles.iter().map(|(_, name)| name.as_str()).collect();
     let profile_ids: Vec<Ulid> = profiles.iter().map(|(id, _)| *id).collect();
+    // Existing profiles first (Default stays the selected default), then a
+    // trailing "New profile…" entry that reveals the name field below.
+    let new_profile_index = profile_ids.len() as u32;
+    let mut profile_names: Vec<&str> = profiles.iter().map(|(_, name)| name.as_str()).collect();
+    profile_names.push("New profile…");
 
     let manifest_row = adw::EntryRow::builder().title("Manifest URL").build();
     let doc_row = adw::EntryRow::builder().title("Document URL (optional)").build();
     let name_row = adw::EntryRow::builder().title("Name (optional)").build();
 
     let profile_combo = adw::ComboRow::builder().title("Profile").build();
-    if !profile_names.is_empty() {
-        profile_combo.set_model(Some(&gtk::StringList::new(&profile_names)));
-    }
+    profile_combo.set_model(Some(&gtk::StringList::new(&profile_names)));
+
+    // Name for the to-be-created profile; only shown when "New profile…" is the
+    // selected entry.
+    let new_profile_row = adw::EntryRow::builder().title("New profile name").visible(false).build();
+    profile_combo.connect_selected_notify(glib::clone!(#[weak] new_profile_row, move |combo| {
+        new_profile_row.set_visible(combo.selected() == new_profile_index);
+    }));
 
     let general = adw::PreferencesGroup::new();
     general.add(&manifest_row);
     general.add(&doc_row);
     general.add(&name_row);
     general.add(&profile_combo);
+    general.add(&new_profile_row);
 
     let options = adw::PreferencesGroup::builder().title("Options").build();
     let login_sw = switch("Launch on login", false);
@@ -70,7 +80,7 @@ pub fn present(ui: &Rc<Ui>) {
     install_btn.connect_clicked(glib::clone!(
         #[strong] ui,
         #[weak] dialog,
-        #[weak] manifest_row, #[weak] doc_row, #[weak] name_row, #[weak] profile_combo,
+        #[weak] manifest_row, #[weak] doc_row, #[weak] name_row, #[weak] profile_combo, #[weak] new_profile_row,
         #[weak] login_sw, #[weak] browser_sw, #[weak] hw_sw, #[weak] sw_sw,
         #[weak] install_btn, #[weak] cancel_btn,
         move |_| {
@@ -80,12 +90,23 @@ pub fn present(ui: &Rc<Ui>) {
                 return;
             }
 
-            let selected = profile_combo.selected() as usize;
-            let profile = profile_ids.get(selected).copied();
+            let selected = profile_combo.selected();
+            // Trailing entry = create a new profile; require a name for it.
+            let (profile, new_profile_name) = if selected == new_profile_index {
+                let new_name = new_profile_row.text().trim().to_owned();
+                if new_name.is_empty() {
+                    ui.toast("New profile name is required");
+                    return;
+                }
+                (None, Some(new_name))
+            } else {
+                (profile_ids.get(selected as usize).copied(), None)
+            };
             let params = core::InstallParams {
                 manifest_url: manifest,
                 document_url: opt(&doc_row.text()),
                 profile,
+                new_profile_name,
                 name: opt(&name_row.text()),
                 launch_on_login: login_sw.is_active(),
                 launch_on_browser: browser_sw.is_active(),

@@ -19,9 +19,13 @@ label { text-shadow: 0 1px 2px rgba(0,0,0,0.55); }\
 separator { background-color: rgba(255,255,255,0.10); }\
 viewswitcher button { background: transparent; box-shadow: none; color: rgba(255,255,255,0.82); }\
 viewswitcher button:hover { background-color: rgba(255,255,255,0.06); }\
-viewswitcher button:checked { color: #ffffff; background-color: color-mix(in srgb, @accent_bg_color 24%, transparent); border: 1px solid color-mix(in srgb, @accent_bg_color 70%, transparent); }\
+/* the ACTIVE tab is always our accent (the label override + opacity:1 beat \
+   libadwaita's dim, which otherwise greyed it out — focused or backdrop). */\
+viewswitcher button:checked { color: @accent_color; background-color: color-mix(in srgb, @accent_bg_color 18%, transparent); border: 1px solid color-mix(in srgb, @accent_bg_color 55%, transparent); }\
+viewswitcher button:checked label, viewswitcher button:checked image { color: @accent_color; opacity: 1; }\
 viewswitcher button:backdrop { color: rgba(255,255,255,0.80); }\
-viewswitcher button:checked:backdrop { color: #ffffff; background-color: color-mix(in srgb, @accent_bg_color 28%, transparent); border-color: color-mix(in srgb, @accent_bg_color 62%, transparent); }\
+viewswitcher button:checked:backdrop { color: @accent_color; background-color: color-mix(in srgb, @accent_bg_color 18%, transparent); border-color: color-mix(in srgb, @accent_bg_color 45%, transparent); }\
+viewswitcher button:checked:backdrop label, viewswitcher button:checked:backdrop image { color: @accent_color; opacity: 1; }\
 button:not(.titlebutton):not(.close):not(.minimize):not(.maximize) { background: transparent; background-image: none; box-shadow: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }\
 button:not(.titlebutton):not(.close):not(.minimize):not(.maximize):hover { border-color: rgba(255,255,255,0.30); background-color: rgba(255,255,255,0.05); }\
 button.flat:not(.titlebutton):not(.close):not(.minimize):not(.maximize) { border: none; background: transparent; }\
@@ -31,6 +35,13 @@ button.destructive-action { border-color: color-mix(in srgb, #e01b24 70%, transp
 dropdown > button, entry, combobox button { background: transparent; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; color: rgba(255,255,255,0.97); }\
 entry > text { color: rgba(255,255,255,0.97); caret-color: rgba(255,255,255,0.97); }\
 entry > text > placeholder { color: rgba(255,255,255,0.40); }\
+/* SpinRow's embedded spinbutton ships an opaque Adwaita input background that \
+   reads as a grey block on the glass; make it transparent so it blends into the \
+   row (only the value + +/- buttons remain), like the colour rows. */\
+spinbutton { background: transparent; background-image: none; border: none; box-shadow: none; }\
+spinbutton > text { background: transparent; color: rgba(255,255,255,0.97); caret-color: rgba(255,255,255,0.97); }\
+/* Text selection uses our accent instead of the system highlight colour. */\
+selection { background-color: @accent_bg_color; color: #ffffff; }\
 list, list > row { background: transparent; }\
 list > row:selected { background-color: color-mix(in srgb, @accent_bg_color 20%, transparent); }\
 list > row:selected, list > row:selected *, list > row:selected label, list > row:selected text { color: rgba(255,255,255,0.97); }\

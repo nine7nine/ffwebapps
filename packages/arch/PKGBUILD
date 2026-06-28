@@ -15,8 +15,8 @@ pkgdesc="Run web apps as native, chromeless Firefox windows with system-tray int
 arch=('x86_64')
 url="https://github.com/nine7nine/ffwebapps"
 license=('MPL-2.0')
-depends=('firefox' 'gtk4' 'libadwaita')
-makedepends=('rust' 'cargo' 'git' 'gtk4' 'libadwaita')
+depends=('firefox' 'gtk4' 'libadwaita' 'gtksourceview5')
+makedepends=('rust' 'cargo' 'git' 'gtk4' 'libadwaita' 'gtksourceview5')
 optdepends=('qt6-tools: KDE tray hide/show & window control (qdbus6)'
             'plasma-workspace: KDE Plasma system tray and KWin')
 install="$pkgname.install"
