@@ -34,6 +34,12 @@ entry > text > placeholder { color: rgba(255,255,255,0.40); }\
 list, list > row { background: transparent; }\
 list > row:selected { background-color: color-mix(in srgb, @accent_bg_color 20%, transparent); }\
 list > row:selected, list > row:selected *, list > row:selected label, list > row:selected text { color: rgba(255,255,255,0.97); }\
+/* AdwPreferencesGroup boxed lists read as clean rounded cards with separators \
+   and breathing room (the glass transparency would otherwise flatten them into \
+   borderless, condensed text). */\
+list.boxed-list { background-color: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; }\
+list.boxed-list > row { min-height: 46px; padding-top: 4px; padding-bottom: 4px; }\
+list.boxed-list > row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.07); }\
 check:checked, switch:checked, switch:checked > slider { background-color: @accent_bg_color; background-image: none; border-color: @accent_bg_color; color: #ffffff; }\
 popover > contents { background-color: rgb(34,34,42); border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 6px 18px rgba(0,0,0,0.55); color: rgba(255,255,255,0.97); }\
 popover > arrow { background-color: rgb(34,34,42); border: 1px solid rgba(255,255,255,0.14); }\
