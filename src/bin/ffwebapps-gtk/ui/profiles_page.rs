@@ -71,6 +71,12 @@ fn populate(ui: &Rc<Ui>, group: &adw::PreferencesGroup, rows: &Rows) {
         let id = profile.ulid;
         let is_default = id == Ulid::nil();
 
+        let inject_btn = icon_button("applications-development-symbolic", "CSS / JS injection");
+        inject_btn.connect_clicked(glib::clone!(#[strong] ui, #[strong] name, move |_| {
+            ui.open_injection(id, name.clone());
+        }));
+        row.add_suffix(&inject_btn);
+
         let edit_btn = icon_button("document-edit-symbolic", "Edit");
         edit_btn.connect_clicked(glib::clone!(#[strong] ui, #[weak] group, #[strong] rows, move |_| {
             present_form(&ui, &group, &rows, Some(id));

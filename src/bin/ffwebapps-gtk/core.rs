@@ -6,6 +6,7 @@
 //! non-panicking display helpers (the library's `Site::name`/`domain` can
 //! `unreachable!`-panic on a malformed manifest — unacceptable in a GUI).
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -377,4 +378,78 @@ pub fn list_profiles(dirs: &ProjectDirs) -> Result<Vec<(Ulid, String)>> {
             (profile.ulid, name)
         })
         .collect())
+}
+
+// ---------------------------------------------------------------------------
+// Global config + runtime argv/env (no CLI command — direct Storage edits)
+// ---------------------------------------------------------------------------
+
+/// The global `Config` plus the runtime argv/env, for the Settings page.
+pub struct ConfigEdits {
+    pub always_patch: bool,
+    pub runtime_enable_wayland: bool,
+    pub runtime_use_xinput2: bool,
+    pub runtime_use_portals: bool,
+    pub use_linked_runtime: bool,
+    pub arguments: Vec<String>,
+    pub variables: BTreeMap<String, String>,
+}
+
+/// Load the current global config + runtime argv/env.
+pub fn load_config(dirs: &ProjectDirs) -> Result<ConfigEdits> {
+    let storage = Storage::load(dirs)?;
+    Ok(ConfigEdits {
+        always_patch: storage.config.always_patch,
+        runtime_enable_wayland: storage.config.runtime_enable_wayland,
+        runtime_use_xinput2: storage.config.runtime_use_xinput2,
+        runtime_use_portals: storage.config.runtime_use_portals,
+        use_linked_runtime: storage.config.use_linked_runtime,
+        arguments: storage.arguments.clone(),
+        variables: storage.variables.clone(),
+    })
+}
+
+/// Persist the global config + runtime argv/env. Takes effect on next launch.
+/// Blocking — call via `spawn`.
+pub fn save_config(edits: ConfigEdits) -> Result<()> {
+    let dirs = ProjectDirs::new()?;
+    let mut storage = Storage::load(&dirs)?;
+    storage.config.always_patch = edits.always_patch;
+    storage.config.runtime_enable_wayland = edits.runtime_enable_wayland;
+    storage.config.runtime_use_xinput2 = edits.runtime_use_xinput2;
+    storage.config.runtime_use_portals = edits.runtime_use_portals;
+    storage.config.use_linked_runtime = edits.use_linked_runtime;
+    storage.arguments = edits.arguments;
+    storage.variables = edits.variables;
+    storage.write(&dirs).context("Failed to save settings")
+}
+
+// ---------------------------------------------------------------------------
+// Per-profile CSS/JS injection (files at the profile root, read at launch)
+// ---------------------------------------------------------------------------
+
+fn injection_paths(dirs: &ProjectDirs, profile: Ulid) -> (PathBuf, PathBuf) {
+    let dir = dirs.userdata.join("profiles").join(profile.to_string());
+    (dir.join("ffwebapps.css"), dir.join("ffwebapps.js"))
+}
+
+/// Read a profile's `ffwebapps.css` / `ffwebapps.js` (empty if absent).
+pub fn read_injection(dirs: &ProjectDirs, profile: Ulid) -> (String, String) {
+    let (css, js) = injection_paths(dirs, profile);
+    (
+        std::fs::read_to_string(css).unwrap_or_default(),
+        std::fs::read_to_string(js).unwrap_or_default(),
+    )
+}
+
+/// Write a profile's `ffwebapps.css` / `ffwebapps.js`. Applies on next launch.
+/// Blocking — call via `spawn`.
+pub fn write_injection(dirs: &ProjectDirs, profile: Ulid, css: &str, js: &str) -> Result<()> {
+    let (css_path, js_path) = injection_paths(dirs, profile);
+    if let Some(parent) = css_path.parent() {
+        std::fs::create_dir_all(parent).context("Failed to create profile directory")?;
+    }
+    std::fs::write(&css_path, css).context("Failed to write ffwebapps.css")?;
+    std::fs::write(&js_path, js).context("Failed to write ffwebapps.js")?;
+    Ok(())
 }

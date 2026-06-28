@@ -12,9 +12,10 @@ use adw::prelude::*;
 use firefoxpwa::components::site::Site;
 use firefoxpwa::directories::ProjectDirs;
 use gtk::glib;
+use ulid::Ulid;
 
 use crate::core;
-use crate::ui::{app_editor, install_dialog, profiles_page, runtime_page};
+use crate::ui::{app_editor, injection_page, install_dialog, profiles_page, runtime_page, settings_page};
 
 pub struct Ui {
     dirs: ProjectDirs,
@@ -41,9 +42,11 @@ pub fn build(app: &adw::Application) {
     header.set_title_widget(Some(&adw::WindowTitle::new("ffwebapps", "Web App Manager")));
     let profiles_btn = gtk::Button::with_label("Profiles");
     let runtime_btn = gtk::Button::with_label("Runtime");
+    let settings_btn = gtk::Button::with_label("Settings");
     let install_btn = gtk::Button::builder().label("Install").css_classes(["suggested-action"]).build();
     header.pack_start(&profiles_btn);
     header.pack_start(&runtime_btn);
+    header.pack_start(&settings_btn);
     header.pack_end(&install_btn);
 
     let toolbar = adw::ToolbarView::new();
@@ -66,6 +69,7 @@ pub fn build(app: &adw::Application) {
     install_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_install()));
     profiles_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_profiles()));
     runtime_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_runtime()));
+    settings_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_settings()));
 
     let window = adw::ApplicationWindow::builder()
         .application(app)
@@ -108,6 +112,15 @@ impl Ui {
 
     fn open_runtime(self: &Rc<Self>) {
         self.nav.push(&runtime_page::build(self));
+    }
+
+    fn open_settings(self: &Rc<Self>) {
+        self.nav.push(&settings_page::build(self));
+    }
+
+    /// Open the per-profile CSS/JS injection editor (called from the profiles page).
+    pub fn open_injection(self: &Rc<Self>, profile: Ulid, name: String) {
+        self.nav.push(&injection_page::build(self, profile, name));
     }
 
     /// Rebuild the profile-grouped app list from current storage.
