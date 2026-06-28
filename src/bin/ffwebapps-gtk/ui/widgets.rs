@@ -95,6 +95,10 @@ pub fn content() -> (gtk::ScrolledWindow, gtk::Box) {
         .hscrollbar_policy(gtk::PolicyType::Never)
         .hexpand(true)
         .vexpand(true)
+        // Report the child's natural height so short dialogs size to their
+        // content instead of collapsing to a tiny scrolling sliver. In the main
+        // window vexpand still fills the height, and taller content scrolls.
+        .propagate_natural_height(true)
         .child(&body)
         .build();
     (scroll, body)
