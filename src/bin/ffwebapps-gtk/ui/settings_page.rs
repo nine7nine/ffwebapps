@@ -2,6 +2,7 @@
 //! arguments and environment variables. Direct `Storage` edits; take effect on
 //! the next web-app launch. Save lives in the body (the window CSD is static).
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -15,6 +16,8 @@ use crate::ui::window::Ui;
 /// Build the settings tab content.
 pub fn build_content(ui: &Rc<Ui>) -> gtk::ScrolledWindow {
     let config = core::load_config(ui.dirs()).unwrap_or_else(|_| empty_config());
+
+    let appearance_group = build_appearance_group();
 
     let runtime_group = adw::PreferencesGroup::builder()
         .title("Runtime")
@@ -80,11 +83,78 @@ pub fn build_content(ui: &Rc<Ui>) -> gtk::ScrolledWindow {
     ));
 
     let (scroll, body) = widgets::content();
+    body.append(&appearance_group);
     body.append(&runtime_group);
     body.append(&args_group);
     body.append(&vars_group);
     body.append(&save_btn);
     scroll
+}
+
+/// Appearance controls (window opacity / glass tint / accent) that apply live
+/// and self-persist — like the Poxicle configurator's Preferences page.
+fn build_appearance_group() -> adw::PreferencesGroup {
+    let appearance = Rc::new(RefCell::new(core::load_appearance()));
+    let group = adw::PreferencesGroup::builder()
+        .title("Appearance")
+        .description("Applies live")
+        .build();
+
+    let opacity_row = adw::SpinRow::with_range(40.0, 100.0, 1.0);
+    opacity_row.set_title("Window opacity");
+    opacity_row.set_value(f64::from(appearance.borrow().opacity));
+    opacity_row.connect_value_notify(glib::clone!(#[strong] appearance, move |row| {
+        appearance.borrow_mut().opacity = row.value().round() as u8;
+        push_appearance(&appearance);
+    }));
+    group.add(&opacity_row);
+
+    group.add(&color_row("Glass color", &appearance.borrow().glass, &appearance, |a, hex| {
+        a.glass = hex;
+    }));
+    group.add(&color_row("Accent color", &appearance.borrow().accent, &appearance, |a, hex| {
+        a.accent = hex;
+    }));
+
+    group
+}
+
+/// A row with a colour-picker suffix that writes its hex into the appearance via
+/// `set`, then applies + persists.
+fn color_row(
+    title: &str,
+    initial: &str,
+    appearance: &Rc<RefCell<core::Appearance>>,
+    set: impl Fn(&mut core::Appearance, String) + 'static,
+) -> adw::ActionRow {
+    let button = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
+    button.set_valign(gtk::Align::Center);
+    if let Ok(rgba) = gtk::gdk::RGBA::parse(initial) {
+        button.set_rgba(&rgba);
+    }
+    button.connect_rgba_notify(glib::clone!(#[strong] appearance, move |button| {
+        set(&mut appearance.borrow_mut(), rgba_to_hex(&button.rgba()));
+        push_appearance(&appearance);
+    }));
+
+    let row = adw::ActionRow::builder().title(title).build();
+    row.add_suffix(&button);
+    row
+}
+
+fn push_appearance(appearance: &Rc<RefCell<core::Appearance>>) {
+    let appearance = appearance.borrow();
+    widgets::apply_appearance(&appearance);
+    core::save_appearance(&appearance);
+}
+
+fn rgba_to_hex(color: &gtk::gdk::RGBA) -> String {
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        (color.red() * 255.0 + 0.5) as u8,
+        (color.green() * 255.0 + 0.5) as u8,
+        (color.blue() * 255.0 + 0.5) as u8,
+    )
 }
 
 fn switch(title: &str, subtitle: &str, active: bool) -> adw::SwitchRow {

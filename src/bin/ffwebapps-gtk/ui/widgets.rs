@@ -79,6 +79,51 @@ pub fn apply_app_style() {
     });
 }
 
+thread_local! {
+    /// A second provider (USER priority, above the static glass sheet) that only
+    /// redefines the accent colours + window tint. Every static rule that
+    /// references `@accent_bg_color`/`@accent_color` re-resolves for free.
+    static APPEARANCE_PROVIDER: gtk::CssProvider = {
+        let provider = gtk::CssProvider::new();
+        if let Some(display) = gtk::gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(
+                &display,
+                &provider,
+                gtk::STYLE_PROVIDER_PRIORITY_USER,
+            );
+        }
+        provider
+    };
+}
+
+/// Apply the live appearance (opacity / glass tint / accent). Re-callable.
+pub fn apply_appearance(appearance: &crate::core::Appearance) {
+    let (r, g, b) = parse_hex(&appearance.glass);
+    let alpha = f64::from(appearance.opacity.min(100)) / 100.0;
+    let accent = &appearance.accent;
+    let css = format!(
+        "@define-color accent_bg_color {accent};\
+         @define-color accent_color {accent};\
+         @define-color accent_fg_color #ffffff;\
+         window {{ background-color: rgba({r},{g},{b},{alpha:.3}); }}"
+    );
+    APPEARANCE_PROVIDER.with(|provider| provider.load_from_data(&css));
+}
+
+fn parse_hex(hex: &str) -> (u8, u8, u8) {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6
+        && let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        )
+    {
+        return (r, g, b);
+    }
+    (20, 20, 26)
+}
+
 /// A full-width, vertically-scrolling content area. Used instead of
 /// `AdwPreferencesPage` so there's no clamp and no large left/right padding —
 /// append `AdwPreferencesGroup`s (or any widgets) to the returned box.

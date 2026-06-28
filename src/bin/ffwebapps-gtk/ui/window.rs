@@ -29,6 +29,7 @@ pub struct Ui {
 /// Build and present the main window. Wired to `Application::activate`.
 pub fn build(app: &adw::Application) {
     widgets::apply_app_style();
+    widgets::apply_appearance(&core::load_appearance());
 
     let dirs = match core::project_dirs() {
         Ok(dirs) => dirs,

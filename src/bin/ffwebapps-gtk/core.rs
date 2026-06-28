@@ -29,6 +29,7 @@ use firefoxpwa::console::app::{
 use firefoxpwa::directories::ProjectDirs;
 use firefoxpwa::storage::Storage;
 use gtk::{gio, glib};
+use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use url::Url;
 
@@ -365,6 +366,50 @@ pub fn patch_runtime() -> Result<()> {
 /// Uninstall the runtime. Blocking — call via `spawn`.
 pub fn uninstall_runtime() -> Result<()> {
     RuntimeUninstallCommand {}.run().context("Failed to uninstall runtime")
+}
+
+// ---------------------------------------------------------------------------
+// GUI appearance (glass tint / opacity / accent) — like the Poxicle configurator
+// ---------------------------------------------------------------------------
+
+/// The GUI's own glass appearance. Persisted separately from the app config in
+/// `~/.local/share/ffwebapps/gui-appearance.json`; applied live.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Appearance {
+    /// Window opacity, 0–100.
+    pub opacity: u8,
+    /// Glass tint colour, `#rrggbb`.
+    pub glass: String,
+    /// Accent colour, `#rrggbb`.
+    pub accent: String,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        // Matches the static glass stylesheet's defaults.
+        Self { opacity: 92, glass: "#14141a".into(), accent: "#3584e4".into() }
+    }
+}
+
+fn appearance_path() -> Option<PathBuf> {
+    ProjectDirs::new().ok().map(|dirs| dirs.userdata.join("gui-appearance.json"))
+}
+
+/// Load the saved appearance, or defaults if absent/unreadable.
+pub fn load_appearance() -> Appearance {
+    appearance_path()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+/// Persist the appearance (best-effort).
+pub fn save_appearance(appearance: &Appearance) {
+    if let Some(path) = appearance_path()
+        && let Ok(json) = serde_json::to_string_pretty(appearance)
+    {
+        let _ = std::fs::write(path, json);
+    }
 }
 
 /// Profiles as `(ulid, display name)` in storage order (nil/Default first).
