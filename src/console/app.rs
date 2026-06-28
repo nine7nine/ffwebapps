@@ -326,8 +326,10 @@ pub struct RuntimePatchCommand {}
 
 #[derive(Parser, Debug, Eq, PartialEq, Clone)]
 pub struct HTTPClientConfig {
-    /// Use a custom user-agent header
-    #[clap(long)]
+    /// Use a custom user-agent header when fetching the manifest and icons
+    /// {n}(Distinct from `site update --user-agent`, which sets the web app's
+    /// own browser User-Agent override.)
+    #[clap(long = "client-user-agent", id = "client_user_agent")]
     pub user_agent: Option<String>,
 
     /// Import additional root certificates from a DER file
