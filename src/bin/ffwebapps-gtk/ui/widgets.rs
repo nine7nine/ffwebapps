@@ -40,7 +40,13 @@ list > row:selected, list > row:selected *, list > row:selected label, list > ro
 list.boxed-list { background-color: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; }\
 list.boxed-list > row { min-height: 46px; padding-top: 4px; padding-bottom: 4px; }\
 list.boxed-list > row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.07); }\
-check:checked, switch:checked, switch:checked > slider { background-color: @accent_bg_color; background-image: none; border-color: @accent_bg_color; color: #ffffff; }\
+check:checked { background-color: @accent_bg_color; background-image: none; border-color: @accent_bg_color; color: #ffffff; }\
+/* switches: dark track when off, accent track when on, ALWAYS a white knob \
+   (styling the knob with the accent made it invisible on the on-state track) */\
+switch { background-color: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.12); box-shadow: none; }\
+switch:checked { background-color: @accent_bg_color; border-color: @accent_bg_color; }\
+switch > slider { background-color: #ffffff; background-image: none; box-shadow: 0 1px 2px rgba(0,0,0,0.45); }\
+switch:checked > slider { background-color: #ffffff; }\
 popover > contents { background-color: rgb(34,34,42); border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 6px 18px rgba(0,0,0,0.55); color: rgba(255,255,255,0.97); }\
 popover > arrow { background-color: rgb(34,34,42); border: 1px solid rgba(255,255,255,0.14); }\
 popover, popover label, popover row { color: rgba(255,255,255,0.97); }\
