@@ -2,8 +2,8 @@
 //!
 //! Layout: `AdwApplicationWindow` → `AdwToastOverlay` → `AdwNavigationView`.
 //! The root page lists web apps grouped by profile; activating a row pushes the
-//! per-app editor. `Ui` (held in an `Rc`) owns the shared widgets and the
-//! list-refresh / editor-navigation logic.
+//! per-app editor. The header offers Profiles / Runtime / Install. `Ui` (held in
+//! an `Rc`) owns the shared widgets and the navigation / refresh logic.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,7 +14,7 @@ use firefoxpwa::directories::ProjectDirs;
 use gtk::glib;
 
 use crate::core;
-use crate::ui::app_editor;
+use crate::ui::{app_editor, install_dialog, profiles_page, runtime_page};
 
 pub struct Ui {
     dirs: ProjectDirs,
@@ -39,6 +39,13 @@ pub fn build(app: &adw::Application) {
 
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new("ffwebapps", "Web App Manager")));
+    let profiles_btn = gtk::Button::with_label("Profiles");
+    let runtime_btn = gtk::Button::with_label("Runtime");
+    let install_btn = gtk::Button::builder().label("Install").css_classes(["suggested-action"]).build();
+    header.pack_start(&profiles_btn);
+    header.pack_start(&runtime_btn);
+    header.pack_end(&install_btn);
+
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&list_page));
@@ -54,8 +61,11 @@ pub fn build(app: &adw::Application) {
     });
     ui.refresh_list();
 
-    // Refresh the list when returning to it (e.g. after a rename in the editor).
+    // Refresh the list when returning to it (e.g. after an edit/install/uninstall).
     nav.connect_popped(glib::clone!(#[strong] ui, move |_, _| ui.refresh_list()));
+    install_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_install()));
+    profiles_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_profiles()));
+    runtime_btn.connect_clicked(glib::clone!(#[strong] ui, move |_| ui.open_runtime()));
 
     let window = adw::ApplicationWindow::builder()
         .application(app)
@@ -68,9 +78,36 @@ pub fn build(app: &adw::Application) {
 }
 
 impl Ui {
+    /// The resolved project directories.
+    pub fn dirs(&self) -> &ProjectDirs {
+        &self.dirs
+    }
+
+    /// A widget inside the window, used as the anchor for `AdwDialog::present`.
+    pub fn anchor(&self) -> &adw::ToastOverlay {
+        &self.toasts
+    }
+
     /// Show a transient toast.
     pub fn toast(&self, text: &str) {
         self.toasts.add_toast(adw::Toast::new(text));
+    }
+
+    /// Pop the current page (returns to the previous one; triggers a refresh).
+    pub fn go_back(&self) {
+        self.nav.pop();
+    }
+
+    fn open_install(self: &Rc<Self>) {
+        install_dialog::present(self);
+    }
+
+    fn open_profiles(self: &Rc<Self>) {
+        self.nav.push(&profiles_page::build(self));
+    }
+
+    fn open_runtime(self: &Rc<Self>) {
+        self.nav.push(&runtime_page::build(self));
     }
 
     /// Rebuild the profile-grouped app list from current storage.

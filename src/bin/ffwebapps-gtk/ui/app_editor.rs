@@ -15,11 +15,16 @@ use crate::ui::window::Ui;
 pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     let header = adw::HeaderBar::new();
     let launch_btn = gtk::Button::with_label("Launch");
+    let uninstall_btn = gtk::Button::builder()
+        .label("Uninstall")
+        .css_classes(["destructive-action"])
+        .build();
     let save_btn = gtk::Button::builder()
         .label("Save")
         .css_classes(["suggested-action"])
         .build();
     header.pack_start(&launch_btn);
+    header.pack_start(&uninstall_btn);
     header.pack_end(&save_btn);
 
     let page = adw::PreferencesPage::new();
@@ -178,6 +183,43 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
                     }
                 }),
             );
+        }
+    ));
+
+    // --- Uninstall ---------------------------------------------------------
+    let uninstall_name = core::site_display_name(&site);
+    uninstall_btn.connect_clicked(glib::clone!(
+        #[strong] ui,
+        #[strong(rename_to = name)] uninstall_name,
+        move |_| {
+            let heading = format!("Uninstall {name}?");
+            let dialog = adw::AlertDialog::new(
+                Some(heading.as_str()),
+                Some("This removes the web app and its system integration. Profile data is kept."),
+            );
+            dialog.add_response("cancel", "Cancel");
+            dialog.add_response("uninstall", "Uninstall");
+            dialog.set_response_appearance("uninstall", adw::ResponseAppearance::Destructive);
+            dialog.set_default_response(Some("cancel"));
+            dialog.set_close_response("cancel");
+            dialog.connect_response(None, glib::clone!(#[strong] ui, move |_, response| {
+                if response != "uninstall" {
+                    return;
+                }
+                core::spawn(
+                    move || core::uninstall_site(id),
+                    glib::clone!(#[strong] ui, move |res: anyhow::Result<()>| {
+                        match res {
+                            Ok(()) => {
+                                ui.toast("Web app uninstalled");
+                                ui.go_back();
+                            }
+                            Err(error) => ui.toast(&format!("Uninstall failed: {error}")),
+                        }
+                    }),
+                );
+            }));
+            dialog.present(Some(ui.anchor()));
         }
     ));
 

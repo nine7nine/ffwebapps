@@ -9,9 +9,22 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use firefoxpwa::components::runtime::Runtime;
 use firefoxpwa::components::site::Site;
 use firefoxpwa::console::Run;
-use firefoxpwa::console::app::{HTTPClientConfig, SiteLaunchCommand, SiteUpdateCommand};
+use firefoxpwa::console::app::{
+    HTTPClientConfig,
+    ProfileCreateCommand,
+    ProfileRemoveCommand,
+    ProfileUpdateCommand,
+    RuntimeInstallCommand,
+    RuntimePatchCommand,
+    RuntimeUninstallCommand,
+    SiteInstallCommand,
+    SiteLaunchCommand,
+    SiteUninstallCommand,
+    SiteUpdateCommand,
+};
 use firefoxpwa::directories::ProjectDirs;
 use firefoxpwa::storage::Storage;
 use gtk::{gio, glib};
@@ -160,13 +173,7 @@ pub fn save_site(edits: SiteEdits) -> Result<()> {
         user_agent: edits.user_agent,
         start_hidden: Some(edits.start_hidden),
         system_integration: true,
-        client: HTTPClientConfig {
-            user_agent: None,
-            tls_root_certificates_der: None,
-            tls_root_certificates_pem: None,
-            tls_danger_accept_invalid_certs: false,
-            tls_danger_accept_invalid_hostnames: false,
-        },
+        client: default_client(),
     };
     command.run().context("Failed to save web app settings")?;
 
@@ -250,4 +257,124 @@ pub fn vec_opt_update(original: &Option<Vec<String>>, text: &str) -> Option<Vec<
 pub fn vec_plain_update(original: &[String], text: &str) -> Option<Vec<String>> {
     let items = parse_csv(text);
     if items == original { None } else { Some(items) }
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle: install / uninstall / profiles / runtime (run via `spawn`)
+// ---------------------------------------------------------------------------
+
+fn default_client() -> HTTPClientConfig {
+    HTTPClientConfig {
+        user_agent: None,
+        tls_root_certificates_der: None,
+        tls_root_certificates_pem: None,
+        tls_danger_accept_invalid_certs: false,
+        tls_danger_accept_invalid_hostnames: false,
+    }
+}
+
+/// Inputs for installing a new web app.
+pub struct InstallParams {
+    pub manifest_url: String,
+    pub document_url: Option<String>,
+    pub profile: Option<Ulid>,
+    pub name: Option<String>,
+    pub launch_on_login: bool,
+    pub launch_on_browser: bool,
+    pub hardware_webrtc: bool,
+    pub software_rendering: bool,
+}
+
+/// Install a web app (fetches the manifest + icons, writes system integration).
+/// Blocking — call via `spawn`. Returns the new web app's ULID.
+pub fn install_site(params: InstallParams) -> Result<Ulid> {
+    let manifest_url = Url::parse(params.manifest_url.trim()).context("Invalid manifest URL")?;
+    let document_url = match params.document_url.as_deref().map(str::trim) {
+        Some(text) if !text.is_empty() => Some(Url::parse(text).context("Invalid document URL")?),
+        _ => None,
+    };
+
+    SiteInstallCommand {
+        manifest_url,
+        document_url,
+        profile: params.profile,
+        start_url: None,
+        icon_url: None,
+        name: params.name,
+        description: None,
+        categories: None,
+        keywords: None,
+        launch_on_login: Some(params.launch_on_login),
+        launch_on_browser: Some(params.launch_on_browser),
+        launch_now: false,
+        hardware_webrtc: params.hardware_webrtc,
+        software_rendering: params.software_rendering,
+        scheduling: None,
+        system_integration: true,
+        client: default_client(),
+    }
+    ._run()
+    .context("Failed to install web app")
+}
+
+/// Uninstall a web app (quiet — no stdin prompt). Blocking — call via `spawn`.
+pub fn uninstall_site(id: Ulid) -> Result<()> {
+    SiteUninstallCommand { id, quiet: true, system_integration: true }
+        .run()
+        .context("Failed to uninstall web app")
+}
+
+/// Create a profile. Blocking — call via `spawn`. Returns the new ULID.
+pub fn create_profile(name: Option<String>, description: Option<String>) -> Result<Ulid> {
+    ProfileCreateCommand { name, description, template: None }
+        ._run()
+        .context("Failed to create profile")
+}
+
+/// Update a profile's name/description. `Some(text)` sets, `None` clears (the
+/// editor always shows current values, so we always set or clear — never leave).
+pub fn update_profile(id: Ulid, name: Option<String>, description: Option<String>) -> Result<()> {
+    ProfileUpdateCommand { id, name: Some(name), description: Some(description), template: None }
+        .run()
+        .context("Failed to update profile")
+}
+
+/// Remove a profile (quiet). The nil/Default profile is only cleared, not
+/// removed (handled by the command). Blocking — call via `spawn`.
+pub fn remove_profile(id: Ulid) -> Result<()> {
+    ProfileRemoveCommand { id, quiet: true }.run().context("Failed to remove profile")
+}
+
+/// The installed runtime version, or `None` if the runtime isn't installed.
+pub fn runtime_version(dirs: &ProjectDirs) -> Option<String> {
+    Runtime::new(dirs).ok().and_then(|runtime| runtime.version)
+}
+
+/// Install the runtime (downloads from Mozilla, or links the system Firefox when
+/// `link` is set). Slow + network — call via `spawn`.
+pub fn install_runtime(link: bool) -> Result<()> {
+    RuntimeInstallCommand { link }.run().context("Failed to install runtime")
+}
+
+/// Re-patch the installed runtime. Blocking — call via `spawn`.
+pub fn patch_runtime() -> Result<()> {
+    RuntimePatchCommand {}.run().context("Failed to patch runtime")
+}
+
+/// Uninstall the runtime. Blocking — call via `spawn`.
+pub fn uninstall_runtime() -> Result<()> {
+    RuntimeUninstallCommand {}.run().context("Failed to uninstall runtime")
+}
+
+/// Profiles as `(ulid, display name)` in storage order (nil/Default first).
+pub fn list_profiles(dirs: &ProjectDirs) -> Result<Vec<(Ulid, String)>> {
+    let storage = Storage::load(dirs)?;
+    Ok(storage
+        .profiles
+        .values()
+        .map(|profile| {
+            let name = profile.name.clone().unwrap_or_else(|| "Unnamed profile".into());
+            (profile.ulid, name)
+        })
+        .collect())
 }

@@ -114,7 +114,7 @@ ksni = "0.2"
 # conservatively below what the Arch system ships (gtk4 4.22 / libadwaita 1.9),
 # so every gated API is available at runtime.
 gtk = { package = "gtk4", version = "0.9", features = ["v4_10"], optional = true }
-adw = { package = "libadwaita", version = "0.7", features = ["v1_4"], optional = true }
+adw = { package = "libadwaita", version = "0.7", features = ["v1_5"], optional = true }
 # Marshals results from blocking worker threads back to the GTK main loop.
 async-channel = { version = "2", optional = true }
 
