@@ -39,9 +39,19 @@ popover > contents { background-color: rgb(34,34,42); border: 1px solid rgba(255
 popover > arrow { background-color: rgb(34,34,42); border: 1px solid rgba(255,255,255,0.14); }\
 popover, popover label, popover row { color: rgba(255,255,255,0.97); }\
 toast { color: rgba(255,255,255,0.97); }\
+/* dialogs are an OPAQUE floating panel (not the translucent window glass), so \
+   they read as a distinct sheet over a dimmed backdrop */\
+.dialog-surface { background-color: rgb(36,36,44); }\
+.dialog-surface headerbar { background-color: rgba(255,255,255,0.03); box-shadow: none; }\
+/* multi-line text inputs read as a subtle inset field, not a bare void */\
+.text-field { background-color: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; }\
+.text-field:focus-within { border-color: rgba(255,255,255,0.30); }\
+textview, textview text { background: transparent; color: rgba(255,255,255,0.95); }\
 scrollbar, scrollbar > trough { background: transparent; border: none; }\
 scrollbar > range > trough > slider { background-color: rgba(255,255,255,0.25); }\
-label.dim-label, .dim-label { opacity: 1; color: rgba(255,255,255,0.72); }\
+/* libadwaita dims section titles/subtitles/placeholders via --dim-opacity \
+   (~0.55), which is unreadable on the dark glass — raise it. */\
+:root, window { --dim-opacity: 0.85; }\
 window:backdrop, headerbar:backdrop, .toolbar:backdrop { color: rgba(255,255,255,0.95); }\
 ";
 

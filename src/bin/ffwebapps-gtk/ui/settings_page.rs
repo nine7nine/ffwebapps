@@ -104,8 +104,10 @@ fn text_view(text: &str, monospace: bool) -> gtk::TextView {
 }
 
 fn text_area(view: &gtk::TextView) -> gtk::Frame {
-    let scroll = gtk::ScrolledWindow::builder().min_content_height(120).child(view).build();
-    gtk::Frame::builder().child(&scroll).build()
+    let scroll = gtk::ScrolledWindow::builder().min_content_height(88).child(view).build();
+    let frame = gtk::Frame::builder().child(&scroll).build();
+    frame.add_css_class("text-field");
+    frame
 }
 
 fn view_text(view: &gtk::TextView) -> String {

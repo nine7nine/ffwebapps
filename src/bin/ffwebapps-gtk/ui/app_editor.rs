@@ -112,14 +112,15 @@ pub fn present(ui: &Rc<Ui>, site: Site) {
     body.append(&update);
 
     let toolbar = adw::ToolbarView::new();
+    toolbar.add_css_class("dialog-surface");
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&scroll));
 
     let page_title = core::site_display_name(&site);
     let editor_dialog = adw::Dialog::builder()
         .title(&page_title)
-        .content_width(880)
-        .content_height(820)
+        .content_width(760)
+        .content_height(720)
         .build();
     editor_dialog.set_child(Some(&toolbar));
 

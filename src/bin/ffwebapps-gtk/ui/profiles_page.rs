@@ -121,6 +121,7 @@ fn present_form(ui: &Rc<Ui>, group: &adw::PreferencesGroup, rows: &Rows, edit_id
     let (scroll, body) = widgets::content();
     body.append(&form);
     let toolbar = adw::ToolbarView::new();
+    toolbar.add_css_class("dialog-surface");
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&scroll));
 

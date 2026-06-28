@@ -52,6 +52,7 @@ pub fn present(ui: &Rc<Ui>) {
     header.pack_end(&install_btn);
 
     let toolbar = adw::ToolbarView::new();
+    toolbar.add_css_class("dialog-surface");
     toolbar.add_top_bar(&header);
     toolbar.set_content(Some(&page));
 

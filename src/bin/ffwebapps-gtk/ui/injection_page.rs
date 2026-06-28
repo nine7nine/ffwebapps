@@ -44,6 +44,7 @@ pub fn present(ui: &Rc<Ui>, profile: Ulid, profile_name: String) {
     body.append(&js_group);
 
     let toolbar = adw::ToolbarView::new();
+    toolbar.add_css_class("dialog-surface");
     toolbar.add_top_bar(&header);
     toolbar.add_top_bar(&banner);
     toolbar.set_content(Some(&scroll));
@@ -90,8 +91,10 @@ fn code_view(text: &str) -> gtk::TextView {
 }
 
 fn code_area(view: &gtk::TextView) -> gtk::Frame {
-    let scroll = gtk::ScrolledWindow::builder().min_content_height(200).child(view).build();
-    gtk::Frame::builder().child(&scroll).build()
+    let scroll = gtk::ScrolledWindow::builder().min_content_height(180).child(view).build();
+    let frame = gtk::Frame::builder().child(&scroll).build();
+    frame.add_css_class("text-field");
+    frame
 }
 
 fn view_text(view: &gtk::TextView) -> String {
