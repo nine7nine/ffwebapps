@@ -53,11 +53,16 @@ package() {
   install -Dm755 target/release/ffwebapps-tray "$pkgdir/usr/bin/ffwebapps-tray"
   install -Dm755 target/release/ffwebapps-gtk  "$pkgdir/usr/bin/ffwebapps-gtk"
 
-  # Management GUI: desktop launcher + icon
+  # Management GUI: desktop launcher + icon (scalable SVG + rasterized PNGs;
+  # KDE's Qt SVG renderer is picky, so ship fixed-size PNGs it can always load).
   install -Dm644 packages/gui/io.github.nine7nine.ffwebapps.desktop \
     "$pkgdir/usr/share/applications/io.github.nine7nine.ffwebapps.desktop"
   install -Dm644 packages/gui/io.github.nine7nine.ffwebapps.svg \
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.nine7nine.ffwebapps.svg"
+  for _s in 16 24 32 48 64 128 256; do
+    install -Dm644 "packages/gui/icons/${_s}x${_s}/io.github.nine7nine.ffwebapps.png" \
+      "$pkgdir/usr/share/icons/hicolor/${_s}x${_s}/apps/io.github.nine7nine.ffwebapps.png"
+  done
 
   # Runtime + profile assets (autoconfig that enables Web Apps + external-link
   # handling, and userChrome.css for the chromeless dark titlebar).
