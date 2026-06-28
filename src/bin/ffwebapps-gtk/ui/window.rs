@@ -175,6 +175,14 @@ impl Ui {
         };
         image.set_pixel_size(32);
         row.add_prefix(&image);
+
+        if crate::ipc::is_running(site.ulid) {
+            let running = gtk::Label::new(Some("● running"));
+            running.add_css_class("success");
+            running.add_css_class("caption");
+            row.add_suffix(&running);
+        }
+
         row.add_suffix(&gtk::Image::from_icon_name("go-next-symbolic"));
 
         let site = site.clone();

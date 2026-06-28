@@ -8,6 +8,7 @@
 //! P0: a read-only window listing installed web apps grouped by profile.
 
 mod core;
+mod ipc;
 mod ui;
 
 use adw::prelude::*;

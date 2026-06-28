@@ -9,6 +9,7 @@ use firefoxpwa::components::site::Site;
 use gtk::glib;
 
 use crate::core;
+use crate::ui::live_control;
 use crate::ui::window::Ui;
 
 /// Build the editor navigation page for `site`.
@@ -28,6 +29,11 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
     header.pack_end(&save_btn);
 
     let page = adw::PreferencesPage::new();
+
+    // --- Live control (connects if the app is running) ---------------------
+    let (live_group, live_conn) = live_control::build(&site);
+    page.add(&live_group);
+
     let cfg = &site.config;
 
     // --- General -----------------------------------------------------------
@@ -222,6 +228,13 @@ pub fn build(ui: &Rc<Ui>, site: Site) -> adw::NavigationPage {
             dialog.present(Some(ui.anchor()));
         }
     ));
+
+    // Tear down the live connection when this editor page goes away.
+    nav_page.connect_hidden(glib::clone!(#[strong] live_conn, move |_| {
+        if let Some(live) = live_conn.borrow_mut().take() {
+            live.close();
+        }
+    }));
 
     nav_page
 }
