@@ -23,6 +23,16 @@ lto = true
 static = ["reqwest/native-tls-vendored", "xz2/static"]
 portable = ["dep:phf"]
 immutable-runtime = []
+# GTK4/libadwaita management GUI (Linux only). Pulls in the optional gtk/libadwaita
+# deps declared in the Linux target table below and enables the ffwebapps-gtk bin.
+gui = ["dep:gtk", "dep:adw", "dep:async-channel"]
+
+# Standalone GTK4 management GUI. Same crate so it can call the library in-process
+# (the core structs are #[non_exhaustive] and only constructible in-crate).
+[[bin]]
+name = "ffwebapps-gtk"
+path = "src/bin/ffwebapps-gtk/main.rs"
+required-features = ["gui"]
 
 [dependencies]
 ab_glyph = "0.2.32"
@@ -100,6 +110,13 @@ blake3 = "1.8.3"
 xz2 = "0.1.7"
 tar = "0.4.45"
 ksni = "0.2"
+# GUI deps (optional, enabled by the `gui` feature). Feature flags are pinned
+# conservatively below what the Arch system ships (gtk4 4.22 / libadwaita 1.9),
+# so every gated API is available at runtime.
+gtk = { package = "gtk4", version = "0.9", features = ["v4_10"], optional = true }
+adw = { package = "libadwaita", version = "0.7", features = ["v1_4"], optional = true }
+# Marshals results from blocking worker threads back to the GTK main loop.
+async-channel = { version = "2", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 dmg = "0.1.2"

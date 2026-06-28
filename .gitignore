@@ -12,5 +12,5 @@
 *~
 .DS_Store
 
-# Core dumps
-core.*
+# Core dumps (core.<pid>); narrowed so it doesn't swallow sources like core.rs
+core.[0-9]*
