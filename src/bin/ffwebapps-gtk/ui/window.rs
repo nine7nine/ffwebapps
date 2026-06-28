@@ -28,6 +28,8 @@ pub struct Ui {
 
 /// Build and present the main window. Wired to `Application::activate`.
 pub fn build(app: &adw::Application) {
+    widgets::apply_app_style();
+
     let dirs = match core::project_dirs() {
         Ok(dirs) => dirs,
         Err(error) => return present_fatal(app, &error.to_string()),
@@ -68,26 +70,36 @@ pub fn build(app: &adw::Application) {
     stack.add_titled_with_icon(&runtime_content, Some("runtime"), "Runtime", "system-run-symbolic");
     stack.add_titled_with_icon(&settings_content, Some("settings"), "Settings", "preferences-system-symbolic");
 
+    // Centred tab switcher in the body (not the window decoration).
     let switcher = adw::ViewSwitcher::builder()
         .stack(&stack)
         .policy(adw::ViewSwitcherPolicy::Wide)
+        .halign(gtk::Align::Center)
+        .margin_top(8)
+        .margin_bottom(6)
         .build();
 
-    // Static header: just the app name (window title) + window controls.
+    toasts.set_child(Some(&stack));
+    toasts.set_vexpand(true);
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    content.append(&switcher);
+    content.append(&toasts);
+
+    // Static header: centred app name + window controls only.
     let header = adw::HeaderBar::new();
+    header.set_title_widget(Some(&adw::WindowTitle::new("ffwebapps", "")));
 
     let toolbar = adw::ToolbarView::new();
     toolbar.add_top_bar(&header);
-    toolbar.add_top_bar(&switcher);
-    toolbar.set_content(Some(&stack));
-    toasts.set_child(Some(&toolbar));
+    toolbar.set_content(Some(&content));
 
     let window = adw::ApplicationWindow::builder()
         .application(app)
         .title("ffwebapps")
-        .default_width(980)
-        .default_height(760)
-        .content(&toasts)
+        .default_width(1000)
+        .default_height(820)
+        .content(&toolbar)
         .build();
     window.present();
 }
