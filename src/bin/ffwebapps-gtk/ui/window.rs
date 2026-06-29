@@ -1,11 +1,14 @@
 //! Main window.
 //!
 //! Layout: `AdwApplicationWindow` → `AdwToastOverlay` → `AdwToolbarView` with a
-//! **static** header (app name + window controls only), an `AdwViewSwitcher`
-//! (tabs) as a second bar, and an `AdwViewStack` of the four sections
-//! (Web Apps / Profiles / Runtime / Settings). Per-section actions live in the
-//! body; detail editors (per-app, injection) open as dialogs. `Ui` (in an `Rc`)
-//! owns the shared widgets and the app-list refresh.
+//! **static** header (app name + window controls only), a centred row of
+//! switcher-style toggle buttons as a second bar, and an `AdwCarousel` of the
+//! four sections (Web Apps / Profiles / Runtime / Settings) so the pages can be
+//! swiped with a touchpad. `AdwViewSwitcher` can only drive an `AdwViewStack`,
+//! never a carousel, so the tab buttons are hand-built and kept in two-way sync
+//! with the carousel's page. Per-section actions live in the body; detail
+//! editors (per-app, injection) open as dialogs. `Ui` (in an `Rc`) owns the
+//! shared widgets and the app-list refresh.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -69,53 +72,95 @@ pub fn build(app: &adw::Application) {
     let runtime_content = runtime_page::build_content(&ui);
     let settings_content = settings_page::build_content(&ui);
 
-    let stack = adw::ViewStack::new();
-    stack.add_titled_with_icon(&apps_scroll, Some("apps"), "Web Apps", "applications-internet-symbolic");
-    stack.add_titled_with_icon(&profiles_content, Some("profiles"), "Profiles", "system-users-symbolic");
-    stack.add_titled_with_icon(&runtime_content, Some("runtime"), "Runtime", "system-run-symbolic");
-    stack.add_titled_with_icon(&settings_content, Some("settings"), "Settings", "preferences-system-symbolic");
+    // The pages live in an AdwCarousel (its swipe tracker gives finger-tracked
+    // touchpad swipes; it only claims the horizontal axis, so each page's list
+    // still scrolls vertically). Order matches the tab buttons below.
+    let carousel = adw::Carousel::new();
+    carousel.set_vexpand(true);
 
-    // Centred tab switcher in the body (not the window decoration).
-    let switcher = adw::ViewSwitcher::builder()
-        .stack(&stack)
-        .policy(adw::ViewSwitcherPolicy::Wide)
+    let page_widgets: Vec<gtk::Widget> = vec![
+        apps_scroll.upcast(),
+        profiles_content.upcast(),
+        runtime_content.upcast(),
+        settings_content.upcast(),
+    ];
+    for page in &page_widgets {
+        carousel.append(page);
+    }
+
+    // Hand-built switcher: a centred row of toggle buttons (one group, so exactly
+    // one is active) styled to match the old AdwViewSwitcher. `AdwViewSwitcher`
+    // can't drive a carousel, hence the manual version.
+    const TABS: [(&str, &str); 4] = [
+        ("applications-internet-symbolic", "Web Apps"),
+        ("system-users-symbolic", "Profiles"),
+        ("system-run-symbolic", "Runtime"),
+        ("preferences-system-symbolic", "Settings"),
+    ];
+    let tabs = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(4)
         .halign(gtk::Align::Center)
         .margin_top(8)
         .margin_bottom(6)
         .build();
+    tabs.add_css_class("swipe-tabs");
 
-    toasts.set_child(Some(&stack));
+    let buttons: Vec<gtk::ToggleButton> = TABS
+        .iter()
+        .map(|(icon, title)| {
+            let inner = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+            inner.set_halign(gtk::Align::Center);
+            inner.append(&gtk::Image::from_icon_name(icon));
+            inner.append(&gtk::Label::new(Some(title)));
+            gtk::ToggleButton::builder().child(&inner).build()
+        })
+        .collect();
+    // Chain every button into the first one's group (radio behaviour).
+    for pair in buttons.windows(2) {
+        pair[1].set_group(Some(&pair[0]));
+    }
+
+    // A guard so the two sync directions (button → carousel, carousel → button)
+    // don't feed back into each other.
+    let syncing = Rc::new(Cell::new(false));
+
+    // Mark the first tab active before wiring handlers, so the carousel's
+    // initial page (0) and the tab bar agree without firing a scroll.
+    buttons[0].set_active(true);
+
+    for (index, button) in buttons.iter().enumerate() {
+        tabs.append(button);
+        let page = page_widgets[index].clone();
+        button.connect_toggled(glib::clone!(
+            #[weak] carousel,
+            #[strong] syncing,
+            move |button| {
+                if button.is_active() && !syncing.get() {
+                    carousel.scroll_to(&page, true);
+                }
+            }
+        ));
+    }
+
+    // Swiping (or the animation after a tab click) settles on a page → light up
+    // its tab. The guard keeps `set_active` from bouncing back into a scroll.
+    let sync_buttons = buttons.clone();
+    let sync_flag = syncing.clone();
+    carousel.connect_page_changed(move |_, index| {
+        sync_flag.set(true);
+        if let Some(button) = sync_buttons.get(index as usize) {
+            button.set_active(true);
+        }
+        sync_flag.set(false);
+    });
+
+    toasts.set_child(Some(&carousel));
     toasts.set_vexpand(true);
 
     let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    content.append(&switcher);
+    content.append(&tabs);
     content.append(&toasts);
-
-    // Touchpad horizontal flick steps between tabs (vertical scroll still
-    // reaches the lists, since the controller only claims the horizontal axis).
-    // Accumulate the horizontal delta and switch a page once it crosses a
-    // threshold — one firm flick ≈ one page.
-    const PAGE_ORDER: [&str; 4] = ["apps", "profiles", "runtime", "settings"];
-    let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::HORIZONTAL);
-    let accum = Rc::new(Cell::new(0.0_f64));
-    scroll.connect_scroll(glib::clone!(#[weak] stack, #[strong] accum, #[upgrade_or] glib::Propagation::Proceed, move |_, dx, _| {
-        const THRESHOLD: f64 = 4.0;
-        let total = accum.get() + dx;
-        let step: i32 = if total > THRESHOLD { 1 } else if total < -THRESHOLD { -1 } else { 0 };
-        if step == 0 {
-            accum.set(total);
-            return glib::Propagation::Proceed;
-        }
-        accum.set(0.0);
-        if let Some(current) = stack.visible_child_name()
-            && let Some(index) = PAGE_ORDER.iter().position(|name| *name == current.as_str())
-        {
-            let next = (index as i32 + step).clamp(0, PAGE_ORDER.len() as i32 - 1) as usize;
-            stack.set_visible_child_name(PAGE_ORDER[next]);
-        }
-        glib::Propagation::Proceed
-    }));
-    content.add_controller(scroll);
 
     // Static header: centred app name + window controls only.
     let header = adw::HeaderBar::new();

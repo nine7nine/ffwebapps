@@ -26,6 +26,18 @@ viewswitcher button:checked label, viewswitcher button:checked image { color: @a
 viewswitcher button:backdrop { color: rgba(255,255,255,0.80); }\
 viewswitcher button:checked:backdrop { color: @accent_color; background-color: color-mix(in srgb, @accent_bg_color 18%, transparent); border-color: color-mix(in srgb, @accent_bg_color 45%, transparent); }\
 viewswitcher button:checked:backdrop label, viewswitcher button:checked:backdrop image { color: @accent_color; opacity: 1; }\
+/* The tab bar is a hand-built row of toggle buttons (a real AdwViewSwitcher \
+   can't drive the AdwCarousel that gives the swipe), so mirror the switcher \
+   look on `.swipe-tabs > button`. Transparent border keeps the generic button \
+   border off the inactive tabs; the accent border returns on :checked. */\
+.swipe-tabs > button { background: transparent; background-image: none; box-shadow: none; border: 1px solid transparent; border-radius: 6px; color: rgba(255,255,255,0.82); padding: 4px 12px; }\
+.swipe-tabs > button label { text-shadow: 0 1px 2px rgba(0,0,0,0.55); }\
+.swipe-tabs > button:hover { background-color: rgba(255,255,255,0.06); }\
+.swipe-tabs > button:checked { color: @accent_color; background-color: color-mix(in srgb, @accent_bg_color 18%, transparent); border-color: color-mix(in srgb, @accent_bg_color 55%, transparent); }\
+.swipe-tabs > button:checked label, .swipe-tabs > button:checked image { color: @accent_color; opacity: 1; }\
+.swipe-tabs > button:backdrop { color: rgba(255,255,255,0.80); }\
+.swipe-tabs > button:checked:backdrop { color: @accent_color; background-color: color-mix(in srgb, @accent_bg_color 18%, transparent); border-color: color-mix(in srgb, @accent_bg_color 45%, transparent); }\
+.swipe-tabs > button:checked:backdrop label, .swipe-tabs > button:checked:backdrop image { color: @accent_color; opacity: 1; }\
 button:not(.titlebutton):not(.close):not(.minimize):not(.maximize) { background: transparent; background-image: none; box-shadow: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; }\
 button:not(.titlebutton):not(.close):not(.minimize):not(.maximize):hover { border-color: rgba(255,255,255,0.30); background-color: rgba(255,255,255,0.05); }\
 button.flat:not(.titlebutton):not(.close):not(.minimize):not(.maximize) { border: none; background: transparent; }\
