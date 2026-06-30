@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — Desktop Integration</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--desktop-integration">ffwebapps — Desktop Integration</h1>
+
+<p>This page documents how an installed web app becomes a first-class desktop citizen on Linux: the <code>.desktop</code> launcher, the icon set, the autostart entry, the window identity that ties them together, and the KDE window rule.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-integration-writes">What &ldquo;integration&rdquo; writes</a></li>
+<li><a href="#2-the-desktop-launcher">The .desktop launcher</a></li>
+<li><a href="#3-window-identity-the-app_id-chain">Window identity: the app_id chain</a></li>
+<li><a href="#4-icons">Icons</a></li>
+<li><a href="#5-categories-and-shortcuts">Categories and shortcuts</a></li>
+<li><a href="#6-autostart-and-start-hidden">Autostart and start-hidden</a></li>
+<li><a href="#7-the-kwin-position-rule">The KWin position rule</a></li>
+<li><a href="#8-cache-refresh-and-uninstall">Cache refresh and uninstall</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-integration-writes">1. What &ldquo;integration&rdquo; writes</h2>
+
+<p>Desktop integration is the step that turns a stored <code>Site</code> into files the desktop environment understands. It runs on <code>site install</code> and <code>site update</code>, and is implemented per-platform; the Linux backend is <code>src/integrations/implementation/linux.rs</code>. Every file is keyed by the same identifier, <code>classid = FFPWA-&lt;ulid&gt;</code> (<code>linux.rs:67</code>), so an app&rsquo;s launcher, icons, autostart entry, and KDE rule all share one stem.</p>
+
+<table>
+<thead>
+<tr>
+<th> File </th>
+<th> Path </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Launcher </td>
+<td> <code>~/.local/share/applications/FFPWA-&lt;ulid&gt;.desktop</code> </td>
+</tr>
+<tr>
+<td> Icons </td>
+<td> <code>~/.local/share/icons/hicolor/&lt;size&gt;/apps/FFPWA-&lt;ulid&gt;.png</code> (+ <code>scalable/</code>, <code>symbolic/</code>) </td>
+</tr>
+<tr>
+<td> Autostart </td>
+<td> <code>~/.config/autostart/FFPWA-&lt;ulid&gt;.desktop</code> (only when launch-on-login) </td>
+</tr>
+<tr>
+<td> KDE rule </td>
+<td> <code>~/.config/kwinrulesrc</code> → section <code>[ffwebapps-FFPWA-&lt;ulid&gt;]</code> (KDE only) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The base directories come from the <code>directories</code> crate (<code>~/.local/share</code>, <code>~/.config</code>), not from ffwebapps' own <code>userdata</code> — these live in the standard XDG locations so the desktop picks them up.</p>
+
+<h2 id="2-the-desktop-launcher">2. The .desktop launcher</h2>
+
+<p><code>create_desktop_entry</code> (<code>linux.rs:199-303</code>) writes the launcher. Its template is straightforward, but two lines carry the weight:</p>
+
+<pre><code class="language-ini code-block">
+[Desktop Entry]
+Type=Application
+Name={name}
+Comment={description}
+Keywords={keywords};
+Categories=GTK;{categories};
+Icon=FFPWA-&lt;ulid&gt;
+Exec={exe} site launch &lt;ulid&gt; --protocol %u
+Actions={actions}
+MimeType={protocols}
+Terminal=false
+StartupNotify=true
+StartupWMClass=org.mozilla.firefox.webapp-&lt;webapp_id&gt;
+</code></pre>
+
+
+<p>The <strong><code>Exec</code></strong> line launches the app <em>through ffwebapps itself</em> — <code>ffwebapps site launch &lt;ulid&gt; --protocol %u</code> — not Firefox directly. That routes every menu/dock launch through the singleton check and tray spawn (see <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>). The <code>%u</code> lets the launcher carry a protocol-handler URL when the app is invoked as a handler.</p>
+
+<p>The <code>{exe}</code> token is usually just the bare <code>ffwebapps</code> binary path, but for non-standard installs (a dev checkout, not <code>/usr/bin</code> + <code>/usr/share/ffwebapps</code>) it is wrapped to bake in the resolved directories so the launched binary finds its data:</p>
+
+<pre><code class="language-ini code-block">
+Exec=env FFPWA_USERDATA=&lt;userdata&gt; FFPWA_SYSDATA=&lt;sysdata&gt; &lt;bin&gt; site launch &lt;ulid&gt; --protocol %u
+</code></pre>
+
+
+<h2 id="3-window-identity-the-app_id-chain">3. Window identity: the app_id chain</h2>
+
+<p>For the desktop to treat a web app as its own application — distinct dock entry, correct icon, its own alt-tab slot — three identities have to line up. This is the single most important detail of the integration, and it is why <code>webapp_id</code> exists.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg     { fill: #1a1b26; }
+    .box    { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .hot    { fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .blu    { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .lbl    { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel{ fill: #e0af68; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln     { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title  { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="900" height="300" class="bg" rx="6"/>
+  <text x="450" y="26" text-anchor="middle" class="title">webapp_id (UUID) threads three identities together</text>
+
+  <rect x="40" y="60" width="250" height="80" class="hot" rx="6"/>
+  <text x="165" y="82" text-anchor="middle" class="lbl-yel">SiteConfig.webapp_id</text>
+  <text x="165" y="102" text-anchor="middle" class="lbl-mut">a UUID v4, minted at install</text>
+  <text x="165" y="120" text-anchor="middle" class="lbl-mut">(distinct from the app's ULID)</text>
+
+  <rect x="330" y="40" width="250" height="56" class="box" rx="6"/>
+  <text x="455" y="62" text-anchor="middle" class="lbl-sm">launch argv</text>
+  <text x="455" y="80" text-anchor="middle" class="lbl-mut">firefox -taskbar-tab &lt;webapp_id&gt;</text>
+
+  <rect x="330" y="112" width="250" height="56" class="box" rx="6"/>
+  <text x="455" y="134" text-anchor="middle" class="lbl-sm">taskbartabs.json</text>
+  <text x="455" y="152" text-anchor="middle" class="lbl-mut">id: &lt;webapp_id&gt; → scope</text>
+
+  <rect x="330" y="184" width="250" height="56" class="box" rx="6"/>
+  <text x="455" y="206" text-anchor="middle" class="lbl-sm">.desktop StartupWMClass</text>
+  <text x="455" y="224" text-anchor="middle" class="lbl-mut">org.mozilla.firefox.webapp-&lt;id&gt;</text>
+
+  <rect x="620" y="112" width="240" height="80" class="blu" rx="6"/>
+  <text x="740" y="138" text-anchor="middle" class="lbl-blu">the live window</text>
+  <text x="740" y="158" text-anchor="middle" class="lbl-mut">Wayland app_id =</text>
+  <text x="740" y="172" text-anchor="middle" class="lbl-mut">org.mozilla.firefox.webapp-&lt;id&gt;</text>
+  <text x="740" y="186" text-anchor="middle" class="lbl-mut">→ matches StartupWMClass</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="290" y1="100" x2="330" y2="68" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="290" y1="100" x2="330" y2="140" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="290" y1="100" x2="330" y2="212" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="580" y1="152" x2="620" y2="152" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="580" y1="212" x2="600" y2="212" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="600" y1="212" x2="600" y2="170" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="600" y1="170" x2="620" y2="170" class="ln"/>
+</svg>
+</div>
+
+
+<p>The chain (<code>linux.rs:226-229</code>, <code>components/site.rs:284-299</code>):</p>
+
+<ul>
+<li>The launch passes <code>-taskbar-tab &lt;webapp_id&gt;</code>, so Firefox gives the window the Wayland <code>app_id</code> <code>org.mozilla.firefox.webapp-&lt;webapp_id&gt;</code>.</li>
+<li>The <code>.desktop</code> file sets <code>StartupWMClass=org.mozilla.firefox.webapp-&lt;webapp_id&gt;</code> to that <em>same</em> string.</li>
+<li>The desktop matches the window&rsquo;s <code>app_id</code> to the launcher&rsquo;s <code>StartupWMClass</code>, so the window groups under the right launcher with the right icon.</li>
+</ul>
+
+
+<p>Separately, <code>MOZ_APP_REMOTINGNAME=ffwebapps-&lt;ulid&gt;</code> gives each app a unique Firefox <em>remoting</em> identity, which is what makes a relaunch focus the existing window instead of spawning a duplicate (see <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>). When <code>webapp_id</code> is absent (a very old app not yet relaunched), <code>StartupWMClass</code> falls back to <code>FFPWA-&lt;ulid&gt;</code>.</p>
+
+<h2 id="4-icons">4. Icons</h2>
+
+<p><code>store_icons</code> (<code>linux.rs:92-186</code>) writes the icon set into the hicolor theme, keyed on <code>classid</code>:</p>
+
+<table>
+<thead>
+<tr>
+<th> Source </th>
+<th> Destination </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> SVG, purpose <code>Any</code> </td>
+<td> <code>icons/hicolor/scalable/apps/FFPWA-&lt;ulid&gt;.svg</code> </td>
+</tr>
+<tr>
+<td> SVG, purpose <code>Monochrome</code> </td>
+<td> <code>icons/hicolor/symbolic/apps/FFPWA-&lt;ulid&gt;-symbolic.svg</code> </td>
+</tr>
+<tr>
+<td> Raster (<code>Any</code>) </td>
+<td> <code>icons/hicolor/&lt;w&gt;x&lt;h&gt;/apps/FFPWA-&lt;ulid&gt;.png</code> at native size </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>A 48×48 PNG is mandatory under the Icon Theme Spec; if the manifest supplies none, ffwebapps generates one. Icons are fetched and rendered by <code>integrations/utils.rs</code>: manifest icons are normalized and ranked (exact-size → <code>Any</code>-size → nearest-larger → nearest-smaller), SVGs are rasterized with <code>resvg</code>/<code>usvg</code>/<code>tiny_skia</code> (with external resource loading disabled), and rasters are resized with Lanczos3. When everything fails, <code>generate_fallback_icon</code> renders the app name&rsquo;s first letter in white on a gray background using the bundled <code>Metropolis-SemiBold.otf</code>.</p>
+
+<h2 id="5-categories-and-shortcuts">5. Categories and shortcuts</h2>
+
+<p><code>Categories=</code> is built by mapping the site&rsquo;s W3C/manifest categories to FreeDesktop menu categories through a compile-time <code>phf</code> map (<code>categories.rs</code>). For example <code>music → Audio;AudioVideo</code>, <code>webdevelopment → WebDevelopment;Development;Network</code>. Matches are accumulated, sorted, de-duplicated, and emitted with a leading <code>GTK;</code>.</p>
+
+<p>Manifest <strong>shortcuts</strong> become <code>[Desktop Action &lt;i&gt;]</code> blocks appended to the <code>.desktop</code> file (<code>linux.rs:270-296</code>), each with its own <code>Exec={exe} site launch &lt;ulid&gt; --url "&lt;url&gt;"</code> and, optionally, its own icon stored under <code>FFPWA-&lt;ulid&gt;-&lt;i&gt;</code>. These are the right-click &ldquo;jump list&rdquo; entries a launcher shows for the app.</p>
+
+<h2 id="6-autostart-and-start-hidden">6. Autostart and start-hidden</h2>
+
+<p><code>create_startup_entry</code> (<code>linux.rs:305-333</code>) manages launch-on-login. When <code>launch_on_login</code> is set, it copies the already-written <code>applications/FFPWA-&lt;ulid&gt;.desktop</code> into <code>~/.config/autostart/</code>. If <code>start_hidden</code> is also set, it rewrites the copied <code>Exec</code> line, appending <code>--hidden</code> so the login launch goes straight to the tray rather than popping the window:</p>
+
+<pre><code class="language-ini code-block">
+Exec=… site launch &lt;ulid&gt; --hidden
+</code></pre>
+
+
+<p>When <code>launch_on_login</code> is false, any existing autostart entry is removed. The <code>--hidden</code> flag flows through to the runtime as <code>FFWEBAPPS_START_HIDDEN=1</code>, which the autoconfig reads to hide the window once it first maps (see <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a>). The tray&rsquo;s &ldquo;Start on login&rdquo; checkbox toggles exactly this state via <code>site update --launch-on-login --start-hidden</code>.</p>
+
+<h2 id="7-the-kwin-position-rule">7. The KWin position rule</h2>
+
+<p>On KDE, <code>write_kwin_rule</code> (<code>linux.rs:372-446</code>) adds a per-app rule to <code>~/.config/kwinrulesrc</code> so KWin restores the window&rsquo;s position across hide/show cycles. It surgically upserts a section and keeps <code>[General]</code>&rsquo;s <code>rules=</code>/<code>count=</code> in sync:</p>
+
+<pre><code class="language-ini code-block">
+[ffwebapps-FFPWA-&lt;ulid&gt;]
+Description=ffwebapps: remember window position for &lt;name&gt;
+positionrule=4
+wmclass=org.mozilla.firefox.webapp-&lt;webapp_id&gt;
+wmclassmatch=1
+types=1
+</code></pre>
+
+
+<p><code>positionrule=4</code> is KWin&rsquo;s &ldquo;Remember&rdquo; policy: it saves and restores the position of the matching window. No initial <code>position=</code> is written, so the first launch gets normal placement; KWin learns the position afterward. After writing, ffwebapps asks KWin to reload its config over D-Bus (<code>qdbus6</code> → <code>org.kde.KWin.reconfigure</code>).</p>
+
+<p>This rule only acts when a <code>webapp_id</code> exists, and only on KDE (<code>XDG_CURRENT_DESKTOP</code> contains <code>KDE</code>). It complements — but is independent of — the runtime&rsquo;s own off-screen-move hide mechanism, which preserves position even without the rule. The handoff notes flag the rule as somewhat inert in practice and a possible cleanup candidate; the runtime mechanism is what actually guarantees position today.</p>
+
+<h2 id="8-cache-refresh-and-uninstall">8. Cache refresh and uninstall</h2>
+
+<p>After writing (or removing) files, <code>update_application_cache</code> (<code>linux.rs:41-48</code>) nudges the desktop to notice: it touches the icon directories and runs <code>update-desktop-database</code>, <code>update-mime-database</code>, <code>gtk-update-icon-cache</code>, and <code>xdg-desktop-menu forceupdate</code>. Without this, a freshly installed app might not appear in the menu until the next login.</p>
+
+<p>Uninstall is the mirror image (<code>linux.rs:522-543</code>): remove the icons (globbed as <code>…/apps/FFPWA-&lt;ulid&gt;*</code>), the launcher, the autostart entry, and the KWin rule section, then refresh the caches. Because every artifact shares the <code>FFPWA-&lt;ulid&gt;</code> stem, the removal is exact and complete.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

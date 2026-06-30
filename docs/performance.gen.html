@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — Performance Tuning</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--performance-tuning">ffwebapps — Performance Tuning</h1>
+
+<p>This page documents the opt-in performance knobs for heavy apps like Teams, WhatsApp, and Meet: hardware video decoding, process scheduling, software-rendering escape hatch, and the per-app memory caps — what each one writes and when to reach for it.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-defaults-first">Defaults first</a></li>
+<li><a href="#2-hardware-webrtc">Hardware WebRTC</a></li>
+<li><a href="#3-software-rendering">Software rendering</a></li>
+<li><a href="#4-the-precedence-rule">The precedence rule</a></li>
+<li><a href="#5-scheduling">Scheduling</a></li>
+<li><a href="#6-memory-caps">Memory caps</a></li>
+<li><a href="#7-why-there-is-no-audio-knob">Why there is no audio knob</a></li>
+<li><a href="#8-verifying-it-works">Verifying it works</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-defaults-first">1. Defaults first</h2>
+
+<p>The starting position is that on Linux, modern Firefox already does the right thing: it GPU-decodes regular video and the WebRTC H.264/VP9 paths by default, and the runtime&rsquo;s autoconfig reaffirms those defaults per app (<code>media.hardware-video-decoding.enabled</code>, <code>media.ffvpx-hw.enabled</code>) so they hold even if the user disabled hardware decoding globally. Firefox falls back to software automatically when no working VA-API driver is present.</p>
+
+<p>So the knobs below are <strong>opt-in</strong> and <strong>off by default</strong>. They exist for the cases the defaults don&rsquo;t cover — forcing decode past a conservative GPU blocklist, the hardware VP8 path, real-time scheduling under load — and each can expose driver bugs, which is exactly why they aren&rsquo;t on for everyone. They are set per app at install or update time and written into the profile&rsquo;s <code>user.js</code> by <code>taskbartabs::write_profile_prefs</code>.</p>
+
+<table>
+<thead>
+<tr>
+<th> Knob </th>
+<th> <code>SiteConfig</code> field </th>
+<th> Set with </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Hardware WebRTC </td>
+<td> <code>hardware_webrtc</code> </td>
+<td> <code>--hardware-webrtc</code> </td>
+</tr>
+<tr>
+<td> Software rendering </td>
+<td> <code>software_rendering</code> </td>
+<td> <code>--software-rendering</code> </td>
+</tr>
+<tr>
+<td> Scheduling </td>
+<td> <code>scheduling</code> </td>
+<td> <code>--scheduling &lt;spec&gt;</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="2-hardware-webrtc">2. Hardware WebRTC</h2>
+
+<p><code>--hardware-webrtc</code> maximises GPU video decoding for calls. Since Firefox already GPU-decodes the common paths, this flag flips the two things left off by default (<code>taskbartabs.rs:213-218</code>):</p>
+
+<pre><code class="language-javascript code-block">
+user_pref("media.hardware-video-decoding.force-enabled", true);
+user_pref("media.navigator.mediadatadecoder_vp8_hardware_enabled", true);
+</code></pre>
+
+
+<ul>
+<li><strong><code>force-enabled</code></strong> bypasses Firefox&rsquo;s GPU blocklist — the conservative deny-list that disables hardware decode on drivers Mozilla considers risky. Forcing past it is what helps when your driver actually works but isn&rsquo;t allowlisted.</li>
+<li><strong>The HW VP8 path</strong> is the codec WhatsApp and Google Meet use for video; without this, VP8 calls decode on the CPU.</li>
+</ul>
+
+
+<p>Both can expose driver bugs (that&rsquo;s why they&rsquo;re behind a flag and off the blocklist for a reason), so they are opt-in per app. They require a working VA-API driver; if there isn&rsquo;t one, Firefox falls back to software regardless.</p>
+
+<h2 id="3-software-rendering">3. Software rendering</h2>
+
+<p><code>--software-rendering</code> is the opposite escape hatch: keep this app <strong>entirely off the GPU</strong>. It is for machines where the GPU driver itself is the source of hangs or lockups. It writes the full set of disables (<code>taskbartabs.rs:196-207</code>):</p>
+
+<pre><code class="language-javascript code-block">
+user_pref("gfx.webrender.software", true);
+user_pref("layers.acceleration.disabled", true);
+user_pref("media.hardware-video-decoding.enabled", false);
+user_pref("media.hardware-video-decoding.force-enabled", false);
+user_pref("media.ffmpeg.vaapi.enabled", false);
+user_pref("media.navigator.mediadatadecoder_vp8_hardware_enabled", false);
+user_pref("media.navigator.mediadatadecoder_vp9_hardware_enabled", false);
+user_pref("media.navigator.mediadatadecoder_h264_hardware_enabled", false);
+</code></pre>
+
+
+<p>This forces software WebRender compositing and software video decode and turns off every hardware decode path — VA-API, VP8, VP9, H.264. It trades CPU for stability: an app that crashed or corrupted under a flaky GPU driver runs slower but reliably.</p>
+
+<h2 id="4-the-precedence-rule">4. The precedence rule</h2>
+
+<p>Because the two video knobs are opposites, the order in <code>write_profile_prefs</code> encodes a precedence: <strong><code>software_rendering</code> wins over <code>hardware_webrtc</code>.</strong> The code is a literal <code>if / else if</code> (<code>taskbartabs.rs:196-218</code>):</p>
+
+<pre><code class="language-text code-block">
+if software_rendering        → write the all-off block
+else if hardware_webrtc      → write the force-on block
+</code></pre>
+
+
+<p>So if both are somehow set, software rendering takes effect and the WebRTC force-on block is never written. That matches intent: &ldquo;this GPU is unstable&rdquo; is a stronger statement than &ldquo;push this GPU harder&rdquo;, and you would never want to force decode onto a GPU you just declared unusable.</p>
+
+<h2 id="5-scheduling">5. Scheduling</h2>
+
+<p>Smooth audio and video under load is often a scheduling problem, not a decoding one — the runtime needs the CPU promptly when frames arrive. <code>--scheduling &lt;spec&gt;</code> runs the whole runtime under a chosen policy. The grammar (<code>scheduling_launcher</code>, <code>site.rs:151-174</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Spec </th>
+<th> Launches under </th>
+<th> Effect </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>nice:-5</code> </td>
+<td> <code>nice -n -5</code> </td>
+<td> Gentle priority bump; always works, no privileges needed </td>
+</tr>
+<tr>
+<td> <code>rr:5</code> </td>
+<td> <code>chrt -r 5</code> </td>
+<td> <code>SCHED_RR</code> real-time at priority 5 </td>
+</tr>
+<tr>
+<td> <code>fifo:5</code> </td>
+<td> <code>chrt -f 5</code> </td>
+<td> <code>SCHED_FIFO</code> real-time at priority 5 </td>
+</tr>
+<tr>
+<td> <code>batch</code> </td>
+<td> <code>chrt -b 0</code> </td>
+<td> <code>SCHED_BATCH</code> — for non-interactive throughput </td>
+</tr>
+<tr>
+<td> <code>idle</code> </td>
+<td> <code>chrt -i 0</code> </td>
+<td> <code>SCHED_IDLE</code> — lowest priority </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The real-time policies (<code>rr</code>, <code>fifo</code>) keep audio/video glitch-free under heavy system load but need <code>rtprio</code> privileges — e.g. membership in a group granted <code>rtprio</code> in <code>/etc/security/limits.conf</code>. The launcher wraps the runtime so a failed policy degrades gracefully rather than failing the launch:</p>
+
+<pre><code class="language-sh code-block">
+&lt;sched&gt; "$@" || exec "$@"
+</code></pre>
+
+
+<p>If <code>chrt</code> can&rsquo;t apply the RT policy (no privilege), the <code>|| exec "$@"</code> still launches the app under normal scheduling. So <code>rr:5</code> is safe to set even on a machine that can&rsquo;t grant it — you just don&rsquo;t get the real-time benefit. The recommended combination for a heavy call app is forced hardware decode plus real-time scheduling:</p>
+
+<pre><code class="language-bash code-block">
+ffwebapps site update &lt;ULID&gt; --hardware-webrtc true --scheduling rr:5
+</code></pre>
+
+
+<h2 id="6-memory-caps">6. Memory caps</h2>
+
+<p>The runtime&rsquo;s autoconfig also tightens per-app memory, on the reasoning that a single-site app doesn&rsquo;t need general-browsing process counts (<code>_autoconfig.cfg:29-30</code>):</p>
+
+<pre><code class="language-javascript code-block">
+defaultPref("dom.ipc.processCount", 4);
+defaultPref("dom.ipc.processCount.webIsolated", 1);
+</code></pre>
+
+
+<p>These cap the content-process pools, cutting per-app memory. Fission still isolates cross-origin frames into their own (capped) processes, so security isolation is preserved. Importantly, these caps touch <strong>content</strong> processes only — the RDD (media decode), GPU, and socket processes that calls and video rely on are unaffected, so capping memory doesn&rsquo;t hurt call performance.</p>
+
+<h2 id="7-why-there-is-no-audio-knob">7. Why there is no audio knob</h2>
+
+<p>There is deliberately no hardware-audio option. WebRTC audio is Opus, which is CPU-cheap and has no GPU decode path to enable — a &ldquo;hardware audio&rdquo; pref would do nothing. Echo cancellation, noise suppression, and auto-gain are on by Firefox default. Under load, the lever that actually improves audio is <code>--scheduling</code> (RT), not a media pref, so that is the only audio-relevant knob ffwebapps exposes.</p>
+
+<h2 id="8-verifying-it-works">8. Verifying it works</h2>
+
+<p>The performance flags can silently fall back (no driver, no privilege), so confirm rather than assume:</p>
+
+<ul>
+<li><strong>Hardware decode:</strong> open <code>about:support</code> and check Media → decoder, then <code>about:webrtc</code> <em>during</em> a call — inbound video should report a hardware decoder.</li>
+<li><strong>Scheduling:</strong> the policy applied or fell back silently; check the runtime process with <code>chrt -p &lt;pid&gt;</code> to see whether the RT policy actually took.</li>
+<li><strong>Software rendering:</strong> <code>about:support</code> should show WebRender (Software) and no hardware video decoder.</li>
+</ul>
+
+
+<p>If a flag didn&rsquo;t take, the fallback is by design — the app still runs, just without the optimization. Re-applying needs only a relaunch, since <code>user.js</code> is rewritten on every launch from the stored config.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

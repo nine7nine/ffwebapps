@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — IPC & the Runtime-Owned Window</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--ipc--the-runtime-owned-window">ffwebapps — IPC &amp; the Runtime-Owned Window</h1>
+
+<p>This page documents the single Unix socket that ties a running web app to its tray and launcher: the wire protocol, the runtime-owned window model, close-to-tray, and the hard-won KWin hide/show mechanism.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-one-socket-one-invariant">One socket, one invariant</a></li>
+<li><a href="#2-the-wire-protocol">The wire protocol</a></li>
+<li><a href="#3-the-server-nsiserversocket-in-the-runtime">The server: nsIServerSocket in the runtime</a></li>
+<li><a href="#4-the-clients">The clients</a></li>
+<li><a href="#5-the-singleton-launcher">The singleton launcher</a></li>
+<li><a href="#6-close-to-tray">Close-to-tray</a></li>
+<li><a href="#7-hide-and-show">Hide and show</a></li>
+<li><a href="#8-hard-won-gotchas">Hard-won gotchas</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-one-socket-one-invariant">1. One socket, one invariant</h2>
+
+<p>A running web app exposes exactly one IPC boundary: a Unix-domain socket at <code>$XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock</code> (falling back to <code>/tmp</code> when <code>XDG_RUNTIME_DIR</code> is unset). The socket is <strong>served by the Firefox runtime itself</strong> — the privileged <code>_autoconfig.cfg</code> binds it — and consumed by thin clients: the tray, the launcher, and the GTK GUI.</p>
+
+<p>The architecture rests on a single invariant:</p>
+
+<blockquote><p><strong>The runtime is alive if and only if the socket accepts a connection.</strong></p></blockquote>
+
+<p>There are no pidfiles and no sentinel files. A leftover socket file from a crash refuses connections, so a failed connect <em>is</em> the liveness check. This one fact powers three separate behaviours — the singleton launcher (don&rsquo;t open a duplicate), the tray&rsquo;s lifetime (exit on EOF), and the GUI&rsquo;s running/hidden status dot — without any of them tracking a PID.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 900 430" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg     { fill: #1a1b26; }
+    .rt     { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .cl     { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .box    { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .sock   { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .lbl    { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur{ fill: #bb9af7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy { fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln     { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .ln-v   { stroke: #9ece6a; stroke-width: 1.5; fill: none; }
+    .title  { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="900" height="430" class="bg" rx="6"/>
+  <text x="450" y="26" text-anchor="middle" class="title">the one socket — runtime is server, everyone else is a client</text>
+
+  <!-- runtime server -->
+  <rect x="300" y="50" width="300" height="86" class="rt" rx="6"/>
+  <text x="450" y="72" text-anchor="middle" class="lbl-pur">Firefox runtime  (_autoconfig.cfg)</text>
+  <text x="450" y="90" text-anchor="middle" class="lbl-mut">nsIServerSocket.initWithFilename(0o600)</text>
+  <text x="450" y="105" text-anchor="middle" class="lbl-mut">owns: window, hide/show, unread, toggles</text>
+  <text x="450" y="122" text-anchor="middle" class="lbl-mut">single source of truth</text>
+
+  <!-- socket -->
+  <rect x="280" y="172" width="340" height="40" class="sock" rx="6"/>
+  <text x="450" y="190" text-anchor="middle" class="lbl-cy">$XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock</text>
+  <text x="450" y="204" text-anchor="middle" class="lbl-mut">newline-delimited text; versioned "v1"</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="450" y1="136" x2="450" y2="172" class="ln"/>
+  <text x="460" y="158" class="lbl-mut">serves</text>
+
+  <!-- clients -->
+  <rect x="40"  y="270" width="240" height="120" class="cl" rx="6"/>
+  <text x="160" y="292" text-anchor="middle" class="lbl-blu">ffwebapps-tray</text>
+  <text x="160" y="310" text-anchor="middle" class="lbl-mut">hello v1 tray</text>
+  <text x="160" y="326" text-anchor="middle" class="lbl-mut">→ toggle / reload / quit / …</text>
+  <text x="160" y="342" text-anchor="middle" class="lbl-mut">← unread / state</text>
+  <text x="160" y="362" text-anchor="middle" class="lbl-mut">EOF ⇒ tray exits</text>
+  <text x="160" y="378" text-anchor="middle" class="lbl-mut">draws icon + badge + menu</text>
+
+  <rect x="330" y="270" width="240" height="120" class="cl" rx="6"/>
+  <text x="450" y="292" text-anchor="middle" class="lbl-blu">launcher  (site launch)</text>
+  <text x="450" y="310" text-anchor="middle" class="lbl-mut">connect succeeds?</text>
+  <text x="450" y="326" text-anchor="middle" class="lbl-mut">yes → hello v1 launcher; show</text>
+  <text x="450" y="342" text-anchor="middle" class="lbl-mut">→ focus, don't duplicate</text>
+  <text x="450" y="362" text-anchor="middle" class="lbl-mut">no → spawn the runtime</text>
+
+  <rect x="620" y="270" width="240" height="120" class="cl" rx="6"/>
+  <text x="740" y="292" text-anchor="middle" class="lbl-blu">ffwebapps-gtk</text>
+  <text x="740" y="310" text-anchor="middle" class="lbl-mut">hello v1 launcher</text>
+  <text x="740" y="326" text-anchor="middle" class="lbl-mut">live-control panel +</text>
+  <text x="740" y="342" text-anchor="middle" class="lbl-mut">per-row running dot</text>
+  <text x="740" y="362" text-anchor="middle" class="lbl-mut">monitors, sends verbs</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="160" y1="270" x2="160" y2="212" class="ln-v"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="160" y1="212" x2="280" y2="200" class="ln-v"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="450" y1="270" x2="450" y2="212" class="ln-v"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="740" y1="270" x2="740" y2="212" class="ln-v"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="740" y1="212" x2="620" y2="200" class="ln-v"/>
+</svg>
+</div>
+
+
+<h2 id="2-the-wire-protocol">2. The wire protocol</h2>
+
+<p>The protocol is newline-delimited UTF-8 text, versioned <code>v1</code> in every handshake. Each connection opens with the client identifying itself; the runtime immediately replies with a three-line state dump, then pushes updates on change.</p>
+
+<p><strong>Client → runtime</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Message </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>hello v1 tray</code> </td>
+<td> Identify as the tray (enables close-to-tray; see §6) </td>
+</tr>
+<tr>
+<td> <code>hello v1 launcher</code> </td>
+<td> Identify as a launcher / monitor (no special handling) </td>
+</tr>
+<tr>
+<td> <code>show</code> / <code>hide</code> / <code>toggle</code> </td>
+<td> Map / unmap / flip the window </td>
+</tr>
+<tr>
+<td> <code>quit</code> </td>
+<td> Force-quit the runtime (<code>Services.startup.quit(eForceQuit)</code>) </td>
+</tr>
+<tr>
+<td> <code>reload</code> </td>
+<td> Reload the current page </td>
+</tr>
+<tr>
+<td> <code>mute-toggle</code> </td>
+<td> Flip audio mute (persisted in <code>ffwebapps.muted</code>) </td>
+</tr>
+<tr>
+<td> <code>dnd-toggle</code> </td>
+<td> Flip do-not-disturb (<code>dom.webnotifications.enabled</code>) </td>
+</tr>
+<tr>
+<td> <code>suspend-toggle</code> </td>
+<td> Flip &ldquo;suspend when hidden&rdquo; (<code>ffwebapps.suspendWhenHidden</code>) </td>
+</tr>
+<tr>
+<td> <code>autostart-toggle</code> </td>
+<td> Toggle the launch-on-login autostart entry </td>
+</tr>
+<tr>
+<td> <code>copy-url</code> </td>
+<td> Copy the current page URL to the clipboard </td>
+</tr>
+<tr>
+<td> <code>open-browser</code> </td>
+<td> Open the current page in the default browser </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><strong>Runtime → client</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Message </th>
+<th> When </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>hello v1 &lt;pid&gt;</code> </td>
+<td> Once, on connect — the runtime&rsquo;s process ID </td>
+</tr>
+<tr>
+<td> <code>unread &lt;n&gt;</code> </td>
+<td> On connect and whenever the unread count changes </td>
+</tr>
+<tr>
+<td> <code>state hidden=&lt;0|1&gt; muted=&lt;0|1&gt; dnd=&lt;0|1&gt; suspend=&lt;0|1&gt; autostart=&lt;0|1&gt;</code> </td>
+<td> On connect and after any toggle changes </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The unread count is scraped from the window title: a repeating 1-second timer matches a leading <code>(N)</code> in <code>document.title</code> and broadcasts <code>unread N</code> when it changes (<code>_autoconfig.cfg:932-952</code>). Because the page keeps running even while the window is hidden, the badge stays accurate in the tray.</p>
+
+<p>A subtle but important detail: the tray never sends <code>show</code> or <code>hide</code> directly — it always sends <code>toggle</code> and lets the runtime decide, because the runtime is the only component that knows the true hidden state (see §8).</p>
+
+<h2 id="3-the-server-nsiserversocket-in-the-runtime">3. The server: nsIServerSocket in the runtime</h2>
+
+<p>The socket lives entirely inside <code>_autoconfig.cfg</code> (<code>377-956</code>). At startup the cfg derives the app ID from <code>MOZ_APP_REMOTINGNAME</code> (<code>ffwebapps-&lt;ulid&gt;</code> → <code>&lt;ulid&gt;</code>), builds the socket path, and binds:</p>
+
+<pre><code class="language-javascript code-block">
+srv.initWithFilename(f, 0o600, -1);   // 0600 = owner-only
+srv.asyncListen(_listener);
+</code></pre>
+
+
+<p>A few server details matter:</p>
+
+<ul>
+<li><strong>Leftover-file cleanup.</strong> A stale socket file from a crashed run blocks the bind, so the cfg removes it first (<code>_autoconfig.cfg:824-828</code>). A <em>live</em> duplicate is impossible here because the launcher only spawns a runtime when the socket refuses connections, and Firefox&rsquo;s own per-profile lock backs that up.</li>
+<li><strong>Early bind with retry.</strong> The cfg binds as early as it can so a relaunch-while-starting is deduplicated; if the socket service isn&rsquo;t up yet it retries on the <code>final-ui-startup</code> observer (<code>_autoconfig.cfg:840-851</code>).</li>
+<li><strong>Per-client async read loop.</strong> Each accepted client gets an async input stream; <code>available() == 0</code> (EOF) or a throw drops the client. Bytes are accumulated and split on <code>\n</code>, each line trimmed and dispatched (<code>_autoconfig.cfg:762-789</code>).</li>
+<li><strong>Teardown on quit.</strong> A <code>quit-application</code> observer closes the server, drops every client, and removes the socket file (<code>_autoconfig.cfg:853-866</code>).</li>
+</ul>
+
+
+<p>The runtime holds the authoritative state for every client; clients never poll and never hold state of their own — they reflect <code>unread</code> / <code>state</code> pushes and forward user intent as verbs.</p>
+
+<h2 id="4-the-clients">4. The clients</h2>
+
+<p><strong>The tray</strong> (<code>ffwebapps-tray.rs</code>) connects, sends <code>hello v1 tray</code>, and runs a reader thread over <code>BufReader::lines()</code>. It mirrors the runtime&rsquo;s <code>state</code>/<code>unread</code> into a shared struct and redraws the icon and menu. When the runtime closes the socket the iterator ends, and the tray calls <code>std::process::exit(0)</code> — its lifetime is bound to the app&rsquo;s. It is documented in detail in <a href="tray.gen.html">System Tray</a>.</p>
+
+<p><strong>The launcher</strong> (<code>console/site.rs:29-41</code>) is fire-and-forget: it connects, writes <code>hello v1 launcher</code> plus optionally <code>show</code>, and never reads a reply. See §5.</p>
+
+<p><strong>The GTK GUI</strong> (<code>ffwebapps-gtk/ipc.rs</code>) identifies as a <code>launcher</code> (not a <code>tray</code>), so it can monitor state and send verbs <em>without</em> triggering close-to-tray semantics. Its reader runs on a <code>std::thread</code> that pushes <code>LiveEvent</code>s into an <code>async-channel</code>, which a <code>glib::spawn_future_local</code> drains onto the GTK main loop. An echo guard prevents an inbound <code>state</code> update from bouncing a verb back out. See <a href="gtk-gui.gen.html">GTK Management GUI</a>.</p>
+
+<h2 id="5-the-singleton-launcher">5. The singleton launcher</h2>
+
+<p>Single-instance behaviour falls straight out of the liveness invariant. When you launch an app — from the menu, the dock, or <code>site launch &lt;ULID&gt;</code> — the console first probes the socket (<code>runtime_show</code>, <code>console/site.rs:29-41</code>):</p>
+
+<pre><code class="language-text code-block">
+connect $XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock
+  ├─ fails   → app not running → write registry + prefs, spawn the runtime
+  └─ succeeds → app already running → send "show", spawn the tray if needed, return
+</code></pre>
+
+
+<p>If there is no explicit target URL or protocol and the connect succeeds, the launcher sends <code>show</code> to focus the existing window and exits without spawning a second Firefox (<code>SiteLaunchCommand::run</code>, <code>console/site.rs:93-101</code>). This avoids the &ldquo;open in another window / use here&rdquo; prompt that a duplicate taskbar-tab window would trigger for a single-page app. A <code>--hidden</code> relaunch sends only the handshake, so it doesn&rsquo;t un-hide a backgrounded app.</p>
+
+<p>The other half of single-instance is the unique <code>MOZ_APP_REMOTINGNAME=ffwebapps-&lt;ulid&gt;</code> set at launch (<code>components/site.rs:299</code>): without it the app would share Firefox&rsquo;s default <code>firefox</code> remoting name and could both intercept external-link launches meant for the user&rsquo;s browser <em>and</em> let a relaunch attach to the wrong instance.</p>
+
+<h2 id="6-close-to-tray">6. Close-to-tray</h2>
+
+<p>The window&rsquo;s X button is intercepted and turned into a hide — but only while a tray client is connected to bring it back. Otherwise the close proceeds for real, so the X can never trap the window with no way to restore it.</p>
+
+<p>Taskbar-tab windows take an early return in Firefox&rsquo;s <code>warnAboutClosingWindow</code> and never fire <code>browser-lastwindow-close-requested</code>, so the cfg overrides the actual close path instead (<code>_autoconfig.cfg:875-927</code>). It hooks all three routes a close can travel — the compositor <code>close</code> event, <code>WindowIsClosing()</code>, and <code>window.close()</code> — and each checks one predicate:</p>
+
+<pre><code class="language-javascript code-block">
+const intercept = () =&gt; isTab() &amp;&amp; !_quitting &amp;&amp; _trayConnected();
+</code></pre>
+
+
+<p>So a close becomes a hide only when the window is a taskbar-tab, the runtime is not already quitting, and a tray is connected. <code>quit</code> sets <code>_quitting = true</code> first, so a real quit is never vetoed. This is also where a <code>--hidden</code> autostart launch is honoured: once the window maps, a short timer hides it to the tray.</p>
+
+<h2 id="7-hide-and-show">7. Hide and show</h2>
+
+<p>Hiding looks trivial but is the most-debugged part of the system. The naive approach — unmap the toplevel via <code>nsIBaseWindow.visibility</code> — works everywhere but <strong>loses the window&rsquo;s position on KWin Wayland</strong>: a remapped toplevel is a <em>new</em> window to the compositor, and KWin re-places it. So the runtime uses two mechanisms and picks per-compositor (<code>_autoconfig.cfg:474-580</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Compositor </th>
+<th> Mechanism </th>
+<th> Effect </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>KWin (KDE)</strong> </td>
+<td> Move the window off-screen by a fixed <code>-50000</code> x-offset with <code>skipTaskbar</code>/<code>skipSwitcher</code>/<code>skipPager</code> set </td>
+<td> The surface stays mapped, so geometry, position, and rendering are preserved exactly </td>
+</tr>
+<tr>
+<td> <strong>Other</strong> </td>
+<td> Unmap via <code>nsIBaseWindow.visibility</code> </td>
+<td> Hides reliably everywhere; re-show placement is left to the compositor </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>On KWin the cfg writes a tiny KWin script to <code>$XDG_RUNTIME_DIR/ffwebapps-&lt;id&gt;.kwin.js</code>, matched to this app&rsquo;s window by the runtime&rsquo;s PID and a <code>webapp</code> resource class, and runs it over D-Bus (<code>qdbus6</code>/<code>qdbus</code>). The off-screen moves are <strong>gated on the window&rsquo;s actual position</strong> (<code>if(w.frameGeometry.x&gt;-10000)…</code>), making them idempotent: a stale hidden-state flag can never push a visible window off-screen or pull a hidden one twice. On KDE an install-time <code>kwinrulesrc</code> &ldquo;Remember position&rdquo; rule (<code>positionrule=4</code>) further helps KWin restore placement — see <a href="desktop-integration.gen.html">Desktop Integration</a>.</p>
+
+<p>An optional &ldquo;suspend when hidden&rdquo; mode gives the page background-tab semantics while hidden — <code>docShellIsActive = false</code> and <code>renderLayers = false</code> (<code>_autoconfig.cfg:602-612</code>) — throttling timers and stopping layer rendering to save CPU/GPU, <em>without</em> killing WebSockets, so chat stays connected. It is fully restored on show.</p>
+
+<h2 id="8-hard-won-gotchas">8. Hard-won gotchas</h2>
+
+<p>The comments in <code>_autoconfig.cfg</code> and <code>HANDOFF.md</code> record several traps that shaped the current design:</p>
+
+<ol>
+<li><strong><code>nsIBaseWindow.visibility</code> cannot be read back.</strong> <code>AppWindow::GetVisibility</code> hardcodes <code>true</code> (Mozilla bug 306245). The runtime therefore tracks <code>_hiddenFlag</code> itself; trusting the getter would make <code>toggle</code> always choose &ldquo;hide&rdquo;.</li>
+<li><strong>Unmap/remap loses position on KWin Wayland.</strong> Empirically <code>500,300 → remap → 1165,811</code>. Hence the off-screen-move mechanism that keeps the surface mapped.</li>
+<li><strong>KWin runs loaded scripts asynchronously.</strong> The <code>Script.run</code> D-Bus call returns <em>before</em> KWin executes the body, so the old &ldquo;load &amp;&amp; run &amp;&amp; unload&rdquo; sequence raced — the trailing unload tore the script down before it ran, and a single toggle did nothing. The fix uses a stable per-app plugin name, unloads any leftover <em>first</em> (forcing a fresh read), loads, runs, and leaves it loaded for the next call to clean up. Under XWayland the unmap fallback masked this; under native Wayland the fallback is a no-op, so the bug surfaced as dead hide/show (commit <code>a908e16</code>).</li>
+<li><strong>Mixed binary versions cause &ldquo;app relaunches after quit&rdquo; bugs.</strong> Always install one version and make sure <code>.desktop</code> <code>Exec</code> lines point at the installed binary, not <code>target/debug</code>.</li>
+</ol>
+
+
+<p>These are the reason the runtime owns its own window: every workaround above needs to read or change Firefox-internal state, which only privileged in-process JS can do reliably.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps Documentation</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  h1 { color: var(--accent); font-size: 1.6rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul { padding-left: 1.5rem; margin-bottom: 0.75rem; list-style: none; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; color: var(--cyan); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  code {
+    background: var(--surface); padding: 0.1rem 0.35rem;
+    border-radius: 3px; font-size: 0.8rem; color: var(--cyan);
+  }
+  .subtitle { color: var(--yellow); font-size: 0.95rem; margin-bottom: 1.5rem; }
+  .lead { color: var(--fg); font-size: 0.86rem; margin: 0.75rem 0 1rem; }
+  .doc-list { margin: 1rem 0; }
+  .doc-list li {
+    padding: 0.6rem 0.8rem; margin-bottom: 0.4rem;
+    background: var(--surface); border-radius: 5px;
+    border-left: 3px solid var(--accent);
+  }
+  .doc-list li:hover { border-left-color: var(--cyan); }
+  .doc-list .desc { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px;
+    font-size: 0.7rem; font-weight: 600; margin-left: 0.5rem;
+  }
+  .badge-core { background: var(--purple); color: var(--bg); }
+  .badge-comp { background: var(--cyan); color: var(--bg); }
+  .badge-sub { background: var(--orange); color: var(--bg); }
+  .badge-ops { background: var(--green); color: var(--bg); }
+  .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0 2rem; }
+  .stat-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.7rem 1.1rem; min-width: 120px;
+  }
+  .stat-val { color: var(--green); font-size: 1.3rem; font-weight: 700; }
+  .stat-label { color: var(--muted); font-size: 0.72rem; }
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+
+<h1>ffwebapps Documentation</h1>
+<p class="subtitle">Design and technical reference for ffwebapps &mdash; native, chromeless web apps for Linux, built on Firefox's first-party Web Apps. Last updated 2026-06-29.</p>
+
+<p class="lead">
+  ffwebapps runs any website as a standalone desktop app: its own window with no tabs or
+  address bar, its own dock identity, and a system-tray icon with an unread badge. Rather than
+  patching Firefox's chrome, it <strong>drives Firefox's first-party Web Apps (Taskbar Tabs)</strong>
+  feature and configures it through supported extension points &mdash; a privileged
+  <code>_autoconfig.cfg</code>, a profile <code>user.js</code>, and <code>userChrome.css</code>.
+  There is no ffwebapps daemon: the running app <em>is</em> a Firefox process that serves one
+  Unix socket, and everything else &mdash; the CLI, the tray, the GTK GUI &mdash; is a short-lived
+  client of it. These pages document each part from its real implementation.
+</p>
+
+<div class="stats">
+  <div class="stat-box"><div class="stat-val">4</div><div class="stat-label">binaries</div></div>
+  <div class="stat-box"><div class="stat-val">1</div><div class="stat-label">IPC socket</div></div>
+  <div class="stat-box"><div class="stat-val">11</div><div class="stat-label">socket verbs</div></div>
+  <div class="stat-box"><div class="stat-val">2</div><div class="stat-label">link-routing layers</div></div>
+  <div class="stat-box"><div class="stat-val">~9.7k</div><div class="stat-label">lines of Rust</div></div>
+</div>
+
+<hr>
+
+<h2>Architecture &amp; Design</h2>
+<ul class="doc-list">
+  <li>
+    <a href="architecture.gen.html">Architecture Overview</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">The binaries, the shared library, the runtime they drive, and the one socket that ties an app to its tray and launcher.</div>
+  </li>
+  <li>
+    <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">Driving Web Apps / Taskbar Tabs, the privileged <code>_autoconfig.cfg</code>, the taskbartabs registry, profile prefs, and the chromeless titlebar.</div>
+  </li>
+  <li>
+    <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">The newline socket protocol, the singleton launcher, close-to-tray, and the hard-won KWin hide/show mechanism.</div>
+  </li>
+  <li>
+    <a href="data-model.gen.html">Data Model &amp; Storage</a>
+    <span class="badge badge-core">CORE</span>
+    <div class="desc">Storage, Config, Site, Profile, and Runtime; the ULID vs UUID identifiers; and the on-disk layout that makes an app fully file-described.</div>
+  </li>
+</ul>
+
+<h2>Components</h2>
+<ul class="doc-list">
+  <li>
+    <a href="cli.gen.html">CLI &amp; Command Model</a>
+    <span class="badge badge-comp">COMPONENT</span>
+    <div class="desc">The clap command tree, the <code>Run</code> trait, and the three-state update semantics behind <code>site update</code>.</div>
+  </li>
+  <li>
+    <a href="tray.gen.html">System Tray</a>
+    <span class="badge badge-comp">COMPONENT</span>
+    <div class="desc">The <code>ksni</code> StatusNotifierItem, the flock singleton, the menu, and the &ldquo;tray spawns nothing&rdquo; invariant.</div>
+  </li>
+  <li>
+    <a href="gtk-gui.gen.html">GTK Management GUI</a>
+    <span class="badge badge-comp">COMPONENT</span>
+    <div class="desc">The <code>ffwebapps-gtk</code> app: same-crate in-process calls, off-thread workers, the carousel UI, and live socket control.</div>
+  </li>
+</ul>
+
+<h2>Subsystems</h2>
+<ul class="doc-list">
+  <li>
+    <a href="link-routing.gen.html">Link Routing &amp; Scope</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">Two-layer out-of-scope interception, the in-app allow-list, and the auth/SSO carve-outs that keep logins working.</div>
+  </li>
+  <li>
+    <a href="desktop-integration.gen.html">Desktop Integration</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">The <code>.desktop</code> launcher, icons, autostart, the <code>app_id</code> identity chain, and the KWin position rule.</div>
+  </li>
+  <li>
+    <a href="performance.gen.html">Performance Tuning</a>
+    <span class="badge badge-sub">SUBSYSTEM</span>
+    <div class="desc">Hardware WebRTC, software rendering, real-time scheduling, and the per-app memory caps &mdash; and the precedence rule between them.</div>
+  </li>
+</ul>
+
+<h2>Build &amp; Operations</h2>
+<ul class="doc-list">
+  <li>
+    <a href="install.gen.html">Build, Install &amp; Packaging</a>
+    <span class="badge badge-ops">OPS</span>
+    <div class="desc">Cargo features and binaries, the runtime link step, the installed footprint, and the Arch package.</div>
+  </li>
+</ul>
+
+<hr>
+<p style="color: var(--muted); font-size: 0.75rem; margin-top: 2rem;">
+  ffwebapps by Jordan Johnston &mdash; <a href="https://github.com/nine7nine/ffwebapps">github.com/nine7nine/ffwebapps</a>
+  <br>A fork of <a href="https://github.com/filips123/PWAsForFirefox">PWAsForFirefox</a> by Filip &Scaron;. &mdash; native chromeless web apps for Linux | 2026-06-29
+</p>
+
+<script>hljs.highlightAll();</script>
+</body></html>

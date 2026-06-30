@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — CLI & Command Model</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--cli--command-model">ffwebapps — CLI &amp; Command Model</h1>
+
+<p>This page documents the <code>ffwebapps</code> command-line interface and the small command pattern behind it: the clap command tree, the <code>Run</code> trait, and the three-state update semantics that let <code>site update</code> tell &ldquo;leave unchanged&rdquo; apart from &ldquo;reset to the manifest default&rdquo;.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-the-command-tree">The command tree</a></li>
+<li><a href="#2-the-run-trait">The Run trait</a></li>
+<li><a href="#3-site-install">site install</a></li>
+<li><a href="#4-site-launch">site launch</a></li>
+<li><a href="#5-site-update">site update</a></li>
+<li><a href="#6-site-uninstall">site uninstall</a></li>
+<li><a href="#7-profile-and-runtime">profile and runtime</a></li>
+<li><a href="#8-update-value-semantics">Update-value semantics</a></li>
+<li><a href="#9-http-client-options">HTTP client options</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-the-command-tree">1. The command tree</h2>
+
+<p>The CLI is a thin clap front-end over the library. <code>ffwebapps.rs</code> is essentially <code>App::parse().run()</code>; everything else is command structs in <code>src/console/</code>. The root <code>App</code> (<code>app.rs:9-24</code>) has three subcommands, each a small group:</p>
+
+<pre><code class="language-text code-block">
+ffwebapps
+├── site
+│   ├── install &lt;MANIFEST_URL&gt; [--document-url --name --profile …]
+│   ├── launch  &lt;ULID&gt; [--url | --protocol] [--hidden]
+│   ├── update  &lt;ULID&gt; [many Option&lt;Option&lt;…&gt;&gt; flags]
+│   └── uninstall &lt;ULID&gt; [-q]
+├── profile
+│   ├── list
+│   ├── create [--name --description --template]
+│   ├── update &lt;ULID&gt; [--name --description --template]
+│   └── remove &lt;ULID&gt; [-q]
+└── runtime
+    ├── install [--link]
+    ├── patch
+    └── uninstall
+</code></pre>
+
+
+<p>Each binary in the project calls these same structs in-process — the GUI builds a <code>SiteUpdateCommand</code> and calls <code>.run()</code> exactly as the CLI does, which is why behaviour, manifest fetching, and system integration are identical across surfaces (see <a href="gtk-gui.gen.html">GTK Management GUI</a>).</p>
+
+<h2 id="2-the-run-trait">2. The Run trait</h2>
+
+<p>Dispatch is uniform through a one-method trait (<code>console/mod.rs:53-55</code>):</p>
+
+<pre><code class="language-rust code-block">
+pub trait Run {
+    fn run(&amp;self) -&gt; Result&lt;()&gt;;
+}
+</code></pre>
+
+
+<p>The subcommand enums (<code>App</code>, <code>SiteCommand</code>, <code>ProfileCommand</code>, <code>RuntimeCommand</code>) implement <code>Run</code> as pure dispatch tables that match the variant and call the inner command&rsquo;s <code>run()</code>. Two commands also need to <em>return a value</em> — the ULID they just created — so they have an inherent <code>_run()</code> alongside the trait method:</p>
+
+<table>
+<thead>
+<tr>
+<th> Command </th>
+<th> <code>run()</code> </th>
+<th> <code>_run()</code> </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>SiteInstallCommand</code> </td>
+<td> calls <code>_run()</code>, discards the ULID </td>
+<td> returns <code>Result&lt;Ulid&gt;</code> (<code>site.rs:230-317</code>) </td>
+</tr>
+<tr>
+<td> <code>ProfileCreateCommand</code> </td>
+<td> calls <code>_run()</code>, discards the ULID </td>
+<td> returns <code>Result&lt;Ulid&gt;</code> (<code>profile.rs:90-108</code>) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The CLI path takes <code>run()</code> and prints; the GUI calls <code>_run()</code> to capture the new ULID (e.g. to select the freshly installed app). Every other command implements <code>run()</code> directly.</p>
+
+<h2 id="3-site-install">3. site install</h2>
+
+<p><code>site install</code> (<code>app.rs:67-138</code>) is the heaviest command: it fetches the manifest and icons, builds a <code>SiteConfig</code>, writes the <code>Site</code>, and runs desktop integration. The positional argument is the manifest URL; <code>--document-url</code> defaults to the manifest URL&rsquo;s parent.</p>
+
+<table>
+<thead>
+<tr>
+<th> Flag </th>
+<th> Purpose </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>--document-url &lt;URL&gt;</code> </td>
+<td> The page itself (defaults to <code>manifest_url.join(".")</code>) </td>
+</tr>
+<tr>
+<td> <code>--profile &lt;ULID&gt;</code> </td>
+<td> Target profile (defaults to the Nil &ldquo;Default&rdquo;) </td>
+</tr>
+<tr>
+<td> <code>--name</code> / <code>--description</code> </td>
+<td> Override manifest metadata </td>
+</tr>
+<tr>
+<td> <code>--start-url</code> / <code>--icon-url</code> </td>
+<td> Override manifest start URL / icon </td>
+</tr>
+<tr>
+<td> <code>--categories</code> / <code>--keywords</code> </td>
+<td> Override manifest categories / keywords </td>
+</tr>
+<tr>
+<td> <code>--launch-on-login &lt;bool&gt;</code> / <code>--launch-on-browser &lt;bool&gt;</code> </td>
+<td> Autostart hooks </td>
+</tr>
+<tr>
+<td> <code>--hardware-webrtc</code> </td>
+<td> Force/maximise hardware WebRTC video decode (flag) </td>
+</tr>
+<tr>
+<td> <code>--software-rendering</code> </td>
+<td> Disable hardware acceleration entirely (flag) </td>
+</tr>
+<tr>
+<td> <code>--scheduling &lt;spec&gt;</code> </td>
+<td> <code>nice:-5</code> / <code>rr:5</code> / <code>fifo:5</code> / <code>batch</code> / <code>idle</code> </td>
+</tr>
+<tr>
+<td> <code>--launch-now</code> </td>
+<td> Launch immediately after install </td>
+</tr>
+<tr>
+<td> <code>--no-system-integration</code> </td>
+<td> Skip <code>.desktop</code> / icon generation </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>On install, <code>--hardware-webrtc</code> and <code>--software-rendering</code> are plain boolean flags; <code>--user-agent</code> and <code>--start-hidden</code> are <em>not</em> available here (they default to unset/false and are set later via <code>site update</code>). The <code>SiteConfig</code> is populated in <code>_run</code> (<code>site.rs:246-271</code>), including the freshly minted <code>webapp_id</code> (a UUID v4).</p>
+
+<h2 id="4-site-launch">4. site launch</h2>
+
+<p><code>site launch &lt;ULID&gt;</code> (<code>app.rs:41-65</code>) starts or focuses an app:</p>
+
+<table>
+<thead>
+<tr>
+<th> Flag </th>
+<th> Purpose </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>--url &lt;URL&gt;...</code> </td>
+<td> Override the start URL(s); conflicts with <code>--protocol</code> </td>
+</tr>
+<tr>
+<td> <code>--protocol [&lt;URL&gt;]</code> </td>
+<td> Launch for a protocol-handler URL; conflicts with <code>--url</code> </td>
+</tr>
+<tr>
+<td> <code>--hidden</code> </td>
+<td> Start hidden in the system tray </td>
+</tr>
+<tr>
+<td> trailing args </td>
+<td> Forwarded verbatim to the Firefox runtime </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The launch path is where single-instance lives: with no explicit target it first probes the app&rsquo;s socket and, if the app is already running, sends <code>show</code> and exits instead of opening a duplicate. The full mechanism — socket probe, tray spawn, env vars, the <code>firefox -taskbar-tab</code> argv — is in <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>.</p>
+
+<h2 id="5-site-update">5. site update</h2>
+
+<p><code>site update &lt;ULID&gt;</code> (<code>app.rs:154-234</code>) is the editing command. Most of its flags are <code>Option&lt;Option&lt;T&gt;&gt;</code> so the command can express three states (see §8). It is the only command that exposes <code>--user-agent</code> and <code>--start-hidden</code>:</p>
+
+<table>
+<thead>
+<tr>
+<th> Flag </th>
+<th> Type </th>
+<th> Notes </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>--name</code> / <code>--description</code> / <code>--start-url</code> / <code>--icon-url</code> </td>
+<td> <code>Option&lt;Option&lt;T&gt;&gt;</code> </td>
+<td> leave / clear / set </td>
+</tr>
+<tr>
+<td> <code>--categories</code> / <code>--keywords</code> / <code>--enabled-url-handlers</code> / <code>--enabled-protocol-handlers</code> </td>
+<td> <code>Option&lt;Vec&lt;String&gt;&gt;</code> </td>
+<td> empty element clears </td>
+</tr>
+<tr>
+<td> <code>--launch-on-login &lt;bool&gt;</code> / <code>--launch-on-browser &lt;bool&gt;</code> </td>
+<td> <code>Option&lt;bool&gt;</code> </td>
+<td> </td>
+</tr>
+<tr>
+<td> <code>--hardware-webrtc &lt;bool&gt;</code> / <code>--software-rendering &lt;bool&gt;</code> </td>
+<td> <code>Option&lt;bool&gt;</code> </td>
+<td> </td>
+</tr>
+<tr>
+<td> <code>--scheduling [&lt;spec&gt;]</code> </td>
+<td> <code>Option&lt;Option&lt;String&gt;&gt;</code> </td>
+<td> empty clears </td>
+</tr>
+<tr>
+<td> <code>--user-agent [&lt;ua&gt;]</code> </td>
+<td> <code>Option&lt;Option&lt;String&gt;&gt;</code> </td>
+<td> empty clears </td>
+</tr>
+<tr>
+<td> <code>--start-hidden &lt;bool&gt;</code> </td>
+<td> <code>Option&lt;bool&gt;</code> </td>
+<td> start in tray when launched on login </td>
+</tr>
+<tr>
+<td> <code>--no-manifest-updates</code> </td>
+<td> flag </td>
+<td> skip re-fetching the manifest (<code>update_manifest = false</code>) </td>
+</tr>
+<tr>
+<td> <code>--no-icon-updates</code> </td>
+<td> flag </td>
+<td> skip re-fetching icons (<code>update_icons = false</code>) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>--no-manifest-updates --no-icon-updates</code> is the network-free way to regenerate launchers and KWin rules — useful when a site&rsquo;s manifest fetch is flaky (Teams) and would otherwise abort a script. This is exactly what the runtime&rsquo;s <code>autostart-toggle</code> shells out to (<code>_autoconfig.cfg:643-648</code>).</p>
+
+<h2 id="6-site-uninstall">6. site uninstall</h2>
+
+<p><code>site uninstall &lt;ULID&gt;</code> (<code>app.rs:140-152</code>) removes the app: its <code>Site</code> record, profile data, <code>.desktop</code> launcher, icons, autostart entry, and KWin rule. <code>-q</code>/<code>--quiet</code> skips the confirmation prompt (the GUI always passes <code>quiet: true</code> and shows its own confirm dialog), and <code>--no-system-integration</code> leaves the desktop files in place.</p>
+
+<h2 id="7-profile-and-runtime">7. profile and runtime</h2>
+
+<p><strong>Profiles</strong> (<code>profile.rs</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Command </th>
+<th> Effect </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>profile list</code> </td>
+<td> Lists profiles with their apps and ULIDs </td>
+</tr>
+<tr>
+<td> <code>profile create [--name --description --template &lt;DIR&gt;]</code> </td>
+<td> Creates a profile; a template directory&rsquo;s contents are copied in </td>
+</tr>
+<tr>
+<td> <code>profile update &lt;ULID&gt; [--name --description --template]</code> </td>
+<td> Edits a profile </td>
+</tr>
+<tr>
+<td> <code>profile remove &lt;ULID&gt; [-q]</code> </td>
+<td> Removes a profile (the Nil Default is only cleared, never deleted) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><strong>Runtime</strong> (<code>runtime.rs</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Command </th>
+<th> Effect </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>runtime install [--link]</code> </td>
+<td> Download a Mozilla build, or <code>--link</code> the system Firefox (Linux) </td>
+</tr>
+<tr>
+<td> <code>runtime patch</code> </td>
+<td> Re-copy the autoconfig payload into the runtime </td>
+</tr>
+<tr>
+<td> <code>runtime uninstall</code> </td>
+<td> Empty the runtime directory </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Both install and uninstall are compiled out under the <code>immutable-runtime</code> feature.</p>
+
+<h2 id="8-update-value-semantics">8. Update-value semantics</h2>
+
+<p>The trickiest part of the command model is distinguishing <strong>&ldquo;the user didn&rsquo;t mention this field&rdquo;</strong> from <strong>&ldquo;the user explicitly cleared it back to the manifest default&rdquo;</strong>. clap models the first as <code>Option&lt;Option&lt;T&gt;&gt; = None</code> and the second as <code>Some(None)</code>. Two macros (<code>console/mod.rs:11-48</code>) apply that to the stored config:</p>
+
+<p><code>store_value!</code> — for <code>Option&lt;Option&lt;T&gt;&gt;</code> → <code>Option&lt;T&gt;</code>:</p>
+
+<table>
+<thead>
+<tr>
+<th> Source </th>
+<th> Result </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>None</code> </td>
+<td> leave the stored value unchanged </td>
+</tr>
+<tr>
+<td> <code>Some(None)</code> </td>
+<td> clear to <code>None</code> (use the manifest/default value) </td>
+</tr>
+<tr>
+<td> <code>Some(Some(v))</code> </td>
+<td> set to <code>Some(v)</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>store_value_vec!</code> — for <code>Option&lt;Vec&lt;T&gt;&gt;</code>, where a single empty-string element is the reset sentinel (a CLI/serve-compat hack):</p>
+
+<table>
+<thead>
+<tr>
+<th> Source </th>
+<th> Result </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>None</code> </td>
+<td> leave unchanged </td>
+</tr>
+<tr>
+<td> <code>Some(vec![""])</code> </td>
+<td> clear to <code>None</code> (manifest default) </td>
+</tr>
+<tr>
+<td> <code>Some(vec![a, b, …])</code> </td>
+<td> set </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The GTK editor reproduces this exact three-state logic in plain Rust (<code>opt_opt_string</code>, <code>vec_opt_update</code>) by diffing each widget&rsquo;s current text against the original config value, so an untouched field is never sent and an emptied field is actively cleared. That correspondence is what lets the GUI and CLI share one update command without the GUI clobbering fields it didn&rsquo;t touch.</p>
+
+<h2 id="9-http-client-options">9. HTTP client options</h2>
+
+<p><code>site install</code> and <code>site update</code> flatten an <code>HTTPClientConfig</code> (<code>app.rs:327-350</code>) that tunes the manifest/icon fetch, kept deliberately separate from the per-app browsing UA:</p>
+
+<table>
+<thead>
+<tr>
+<th> Flag </th>
+<th> Purpose </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>--client-user-agent &lt;ua&gt;</code> </td>
+<td> UA used when fetching the manifest and icons (not the app&rsquo;s browsing UA) </td>
+</tr>
+<tr>
+<td> <code>--tls-root-certificates-der</code> / <code>--tls-root-certificates-pem &lt;FILE&gt;...</code> </td>
+<td> Extra trust roots </td>
+</tr>
+<tr>
+<td> <code>--tls-danger-accept-invalid-certs</code> / <code>--tls-danger-accept-invalid-hostnames</code> </td>
+<td> Relax TLS verification </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Note the two distinct user-agent concepts: <code>--client-user-agent</code> (install-time fetch) is unrelated to <code>site update --user-agent</code> (the app&rsquo;s runtime <code>general.useragent.override</code>). Confusing the two caused an early bug (<code>c4e2676</code>).</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

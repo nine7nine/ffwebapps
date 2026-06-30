@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — Architecture Overview</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--architecture-overview">ffwebapps — Architecture Overview</h1>
+
+<p>This page is the system map for ffwebapps: the binaries, the shared library they all call, the Firefox runtime they drive, and the single socket that ties a running app to its tray and launcher.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-what-ffwebapps-is">What ffwebapps is</a></li>
+<li><a href="#2-the-core-idea-drive-dont-patch">The core idea: drive, don&rsquo;t patch</a></li>
+<li><a href="#3-component-model">Component model</a></li>
+<li><a href="#4-the-shared-library">The shared library</a></li>
+<li><a href="#5-on-disk-state">On-disk state</a></li>
+<li><a href="#6-lifecycle-of-an-app">Lifecycle of an app</a></li>
+<li><a href="#7-the-one-ipc-boundary">The one IPC boundary</a></li>
+<li><a href="#8-source-layout">Source layout</a></li>
+<li><a href="#9-design-rules">Design rules</a></li>
+<li><a href="#10-document-index">Document index</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-what-ffwebapps-is">1. What ffwebapps is</h2>
+
+<p>ffwebapps runs any website as a <strong>native, chromeless desktop app</strong> on Linux: its own window with no tabs or address bar, its own taskbar/dock identity, a system-tray icon with an unread badge, close-to-tray, and out-of-scope links that open in your real browser. It is a CLI-driven fork of <a href="https://github.com/filips123/PWAsForFirefox">PWAsForFirefox</a>&rsquo;s native component, re-architected to drive Firefox&rsquo;s first-party <strong>Web Apps (Taskbar Tabs)</strong> feature rather than patch the browser chrome at runtime.</p>
+
+<p>The whole project is one Rust crate (<code>firefoxpwa</code>) that produces several binaries plus a small bundle of privileged Firefox configuration. There is no long-lived ffwebapps daemon: the <em>running app is a Firefox process</em>, and everything else is either a one-shot CLI command or a thin client of the socket that Firefox process serves.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 980 700" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg      { fill: #1a1b26; }
+    .layer-u { fill: #1a2a1a; stroke: #9ece6a; stroke-width: 1.5; }
+    .layer-s { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .layer-p { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .layer-f { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .box     { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .box-hot { fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .sys     { fill: #1f2535; stroke: #565f89; stroke-width: 1; }
+    .lbl     { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm  { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut { fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-grn { fill: #9ece6a; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu { fill: #7aa2f7; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur { fill: #bb9af7; font-size: 12px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy  { fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel { fill: #e0af68; font-size: 10px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln      { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .bound   { stroke: #6b7398; stroke-width: 1.2; stroke-dasharray: 6,4; fill: none; }
+    .title   { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+
+  <rect x="0" y="0" width="980" height="700" class="bg" rx="6"/>
+  <text x="490" y="26" text-anchor="middle" class="title">ffwebapps component architecture</text>
+
+  <!-- Control surfaces -->
+  <rect x="20" y="44" width="940" height="84" class="layer-u" rx="6"/>
+  <text x="40" y="64" class="lbl-grn">control surfaces  --  link the library in-process</text>
+  <text x="40" y="78" class="lbl-mut">no shelling out, no CLI-text parsing: each constructs command structs and calls .run()</text>
+
+  <rect x="40"  y="86" width="280" height="34" class="box" rx="6"/>
+  <text x="180" y="107" text-anchor="middle" class="lbl-sm">ffwebapps  (CLI)</text>
+  <rect x="332" y="86" width="280" height="34" class="box" rx="6"/>
+  <text x="472" y="107" text-anchor="middle" class="lbl-sm">ffwebapps-gtk  (GTK4 / libadwaita GUI)</text>
+  <rect x="624" y="86" width="316" height="34" class="box" rx="6"/>
+  <text x="782" y="100" text-anchor="middle" class="lbl-sm">firefoxpwa-connector</text>
+  <text x="782" y="113" text-anchor="middle" class="lbl-mut">inherited native-messaging host (unused by CLI flow)</text>
+
+  <!-- surfaces -> library -->
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="180" y1="128" x2="180" y2="158" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="472" y1="128" x2="472" y2="158" class="ln"/>
+
+  <!-- Library core -->
+  <rect x="20" y="162" width="940" height="104" class="layer-s" rx="6"/>
+  <text x="40" y="182" class="lbl-blu">firefoxpwa  --  the shared library (one crate, called in-process)</text>
+  <text x="40" y="196" class="lbl-mut">manifest fetch, system integration, storage; the only code that mutates app state</text>
+
+  <rect x="40"  y="206" width="210" height="50" class="box" rx="6"/>
+  <text x="145" y="226" text-anchor="middle" class="lbl-sm">storage / components</text>
+  <text x="145" y="240" text-anchor="middle" class="lbl-mut">Site / Profile / Runtime / Config</text>
+  <text x="145" y="252" text-anchor="middle" class="lbl-mut">over config.json</text>
+
+  <rect x="262" y="206" width="210" height="50" class="box" rx="6"/>
+  <text x="367" y="226" text-anchor="middle" class="lbl-sm">taskbartabs</text>
+  <text x="367" y="240" text-anchor="middle" class="lbl-mut">writes taskbartabs.json +</text>
+  <text x="367" y="252" text-anchor="middle" class="lbl-mut">per-app user.js prefs</text>
+
+  <rect x="484" y="206" width="210" height="50" class="box" rx="6"/>
+  <text x="589" y="226" text-anchor="middle" class="lbl-sm">integrations</text>
+  <text x="589" y="240" text-anchor="middle" class="lbl-mut">.desktop launchers, icons,</text>
+  <text x="589" y="252" text-anchor="middle" class="lbl-mut">autostart, KWin rules</text>
+
+  <rect x="706" y="206" width="234" height="50" class="box" rx="6"/>
+  <text x="823" y="226" text-anchor="middle" class="lbl-sm">console (clap commands)</text>
+  <text x="823" y="240" text-anchor="middle" class="lbl-mut">site / profile / runtime;</text>
+  <text x="823" y="252" text-anchor="middle" class="lbl-mut">launch builds Firefox argv</text>
+
+  <!-- library -> disk -->
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="145" y1="266" x2="145" y2="300" class="ln"/>
+  <text x="157" y="288" class="lbl-mut">read / write</text>
+
+  <!-- Disk state -->
+  <rect x="20" y="304" width="450" height="86" class="sys" rx="6"/>
+  <text x="40" y="324" class="lbl-cy">on-disk state  (~/.local/share/ffwebapps)</text>
+  <rect x="40"  y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="105" y="353" text-anchor="middle" class="lbl-mut">config.json</text>
+  <text x="105" y="367" text-anchor="middle" class="lbl-mut">sites + profiles</text>
+  <rect x="182" y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="247" y="353" text-anchor="middle" class="lbl-mut">profiles/&lt;ulid&gt;/</text>
+  <text x="247" y="367" text-anchor="middle" class="lbl-mut">Firefox profile</text>
+  <rect x="324" y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="389" y="353" text-anchor="middle" class="lbl-mut">runtime/</text>
+  <text x="389" y="367" text-anchor="middle" class="lbl-mut">linked Firefox</text>
+
+  <!-- XDG integration files -->
+  <rect x="490" y="304" width="450" height="86" class="sys" rx="6"/>
+  <text x="510" y="324" class="lbl-cy">desktop integration  (XDG dirs)</text>
+  <rect x="510" y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="575" y="353" text-anchor="middle" class="lbl-mut">applications/</text>
+  <text x="575" y="367" text-anchor="middle" class="lbl-mut">FFPWA-&lt;ulid&gt;.desktop</text>
+  <rect x="652" y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="717" y="353" text-anchor="middle" class="lbl-mut">icons/hicolor/</text>
+  <text x="717" y="367" text-anchor="middle" class="lbl-mut">app icons</text>
+  <rect x="794" y="334" width="130" height="46" class="box" rx="6"/>
+  <text x="859" y="353" text-anchor="middle" class="lbl-mut">autostart/</text>
+  <text x="859" y="367" text-anchor="middle" class="lbl-mut">launch-on-login</text>
+
+  <!-- launch boundary -->
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="20" y1="406" x2="960" y2="406" class="bound"/>
+  <text x="490" y="401" text-anchor="middle" class="lbl-yel">firefox -profile … -taskbar-tab &lt;webapp_id&gt;  --  launch boundary</text>
+
+  <!-- console -> firefox -->
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="823" y1="256" x2="823" y2="430" class="ln"/>
+  <text x="835" y="350" class="lbl-mut">spawns</text>
+
+  <!-- The running app -->
+  <rect x="20" y="430" width="940" height="130" class="layer-p" rx="6"/>
+  <text x="40" y="450" class="lbl-pur">the running app  --  a system Firefox process (Web App window)</text>
+  <text x="40" y="464" class="lbl-mut">owns its window and lifecycle; configured entirely by files in its profile</text>
+
+  <rect x="40"  y="474" width="300" height="74" class="box-hot" rx="6"/>
+  <text x="190" y="493" text-anchor="middle" class="lbl-yel">_autoconfig.cfg  (privileged JS)</text>
+  <text x="190" y="509" text-anchor="middle" class="lbl-mut">serves the Unix socket, owns hide/show,</text>
+  <text x="190" y="522" text-anchor="middle" class="lbl-mut">routes out-of-scope links to the browser,</text>
+  <text x="190" y="535" text-anchor="middle" class="lbl-mut">injects per-app CSS / JS, tracks unread</text>
+
+  <rect x="352" y="474" width="290" height="74" class="box" rx="6"/>
+  <text x="497" y="493" text-anchor="middle" class="lbl-sm">profile config (read at launch)</text>
+  <text x="497" y="509" text-anchor="middle" class="lbl-mut">user.js  -- link allow-list, perf prefs, UA</text>
+  <text x="497" y="522" text-anchor="middle" class="lbl-mut">chrome/userChrome.css  -- chromeless titlebar</text>
+  <text x="497" y="535" text-anchor="middle" class="lbl-mut">taskbartabs/taskbartabs.json  -- scope</text>
+
+  <rect x="654" y="474" width="286" height="74" class="box" rx="6"/>
+  <text x="797" y="493" text-anchor="middle" class="lbl-sm">window identity</text>
+  <text x="797" y="509" text-anchor="middle" class="lbl-mut">app_id  org.mozilla.firefox.webapp-&lt;id&gt;</text>
+  <text x="797" y="522" text-anchor="middle" class="lbl-mut">MOZ_APP_REMOTINGNAME  ffwebapps-&lt;ulid&gt;</text>
+  <text x="797" y="535" text-anchor="middle" class="lbl-mut">= distinct dock entry + single instance</text>
+
+  <!-- socket boundary -->
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="190" y1="548" x2="190" y2="592" class="ln"/>
+  <text x="202" y="575" class="lbl-cy">serves</text>
+
+  <!-- Socket + clients -->
+  <rect x="20" y="596" width="940" height="92" class="layer-f" rx="6"/>
+  <text x="40" y="616" class="lbl-cy" style="font-size:8px; letter-spacing:-0.15px">$XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock  --  the one IPC boundary (newline protocol)</text>
+  <text x="40" y="630" class="lbl-mut">runtime alive  iff  socket accepts; no pidfiles, no sentinels</text>
+
+  <rect x="40"  y="640" width="280" height="38" class="box" rx="6"/>
+  <text x="180" y="659" text-anchor="middle" class="lbl-sm">ffwebapps-tray</text>
+  <text x="180" y="671" text-anchor="middle" class="lbl-mut">StatusNotifierItem: icon, badge, menu</text>
+
+  <rect x="332" y="640" width="280" height="38" class="box" rx="6"/>
+  <text x="472" y="659" text-anchor="middle" class="lbl-sm">launcher  (site launch)</text>
+  <text x="472" y="671" text-anchor="middle" class="lbl-mut">connect succeeds = focus, don't duplicate</text>
+
+  <rect x="624" y="640" width="316" height="38" class="box" rx="6"/>
+  <text x="782" y="659" text-anchor="middle" class="lbl-sm">ffwebapps-gtk live control</text>
+  <text x="782" y="671" text-anchor="middle" class="lbl-mut">running / hidden / unread + show / hide / quit</text>
+</svg>
+</div>
+
+
+<h2 id="2-the-core-idea-drive-dont-patch">2. The core idea: drive, don&rsquo;t patch</h2>
+
+<p>The upstream project, and most &ldquo;site-specific browser&rdquo; tools, achieve a chromeless window by <em>patching the browser&rsquo;s chrome</em> at runtime — replacing <code>browser.xhtml</code>, injecting a custom UI, and maintaining that patch against every Firefox update. ffwebapps takes the opposite stance: it leans on a feature Mozilla now ships and maintains itself.</p>
+
+<p>Firefox ≥ 151 includes <strong>Web Apps (Taskbar Tabs)</strong>: pass <code>firefox -taskbar-tab &lt;id&gt;</code> and Firefox opens a standalone, minimal-UI window with its own Wayland <code>app_id</code>. ffwebapps' job is reduced to three things:</p>
+
+<ol>
+<li><strong>Register</strong> the app in the profile&rsquo;s <code>taskbartabs.json</code> so the ID resolves to a scope and a start URL.</li>
+<li><strong>Configure</strong> the runtime through first-party mechanisms — a privileged <code>_autoconfig.cfg</code>, a profile <code>user.js</code>, and <code>userChrome.css</code> — to enable the feature, strip the last toolbar pixels, route links, and serve a tray socket.</li>
+<li><strong>Integrate</strong> with the desktop — generate the <code>.desktop</code> launcher, icons, and (on KDE) a window rule.</li>
+</ol>
+
+
+<p>Nothing monkeypatches Firefox&rsquo;s UI code. The chromeless look is <code>userChrome.css</code>; the behaviour is <code>_autoconfig.cfg</code>. Both are supported, documented Firefox extension points. See <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a> for the full mechanism.</p>
+
+<h2 id="3-component-model">3. Component model</h2>
+
+<p>ffwebapps is built from four binaries and one configuration bundle. Only the first three binaries matter for the Linux web-app flow; the connector is inherited from upstream.</p>
+
+<table>
+<thead>
+<tr>
+<th> Component </th>
+<th> Kind </th>
+<th> Role </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>ffwebapps</code> </td>
+<td> CLI binary </td>
+<td> The primary interface: install / launch / update / uninstall apps, profiles, and the runtime </td>
+</tr>
+<tr>
+<td> <code>ffwebapps-tray</code> </td>
+<td> Tray binary </td>
+<td> A <code>StatusNotifierItem</code> that shows the icon, unread badge, and menu, and drives the window over the socket </td>
+</tr>
+<tr>
+<td> <code>ffwebapps-gtk</code> </td>
+<td> GUI binary </td>
+<td> A GTK4 / libadwaita management app behind the <code>gui</code> cargo feature; same crate, calls the library in-process </td>
+</tr>
+<tr>
+<td> <code>firefoxpwa-connector</code> </td>
+<td> Helper binary </td>
+<td> Native-messaging host inherited from PWAsForFirefox; not part of the CLI-driven flow </td>
+</tr>
+<tr>
+<td> <code>userchrome/</code> </td>
+<td> Config bundle </td>
+<td> <code>_autoconfig.cfg</code>, <code>autoconfig.js</code>, and <code>userChrome.css</code> installed into the runtime / profile </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The crucial property: <strong>there is no ffwebapps daemon</strong>. A web app that is &ldquo;running&rdquo; is a Firefox process. The CLI and GUI are short-lived; the tray is a thin remote that exits when its app does. State lives on disk and in that one Firefox process.</p>
+
+<h2 id="4-the-shared-library">4. The shared library</h2>
+
+<p>Everything except the privileged JS lives in the <code>firefoxpwa</code> crate, and <code>src/lib.rs</code> re-exports each module so every binary calls the <em>same</em> code in-process:</p>
+
+<pre><code class="language-rust code-block">
+pub mod components;   // Site, Profile, Runtime, taskbartabs registry
+pub mod connector;    // inherited native-messaging protocol
+pub mod console;      // clap command structs + the Run trait
+pub mod directories;  // ProjectDirs — the on-disk layout
+pub mod integrations; // .desktop / icons / autostart / KWin rules
+pub mod storage;      // Storage + Config over config.json
+pub mod utils;
+</code></pre>
+
+
+<p>The GTK GUI was deliberately built as a second binary <em>in the same crate</em> rather than a separate program. The core types (<code>Site</code>, <code>Config</code>, <code>Storage</code>, <code>ProjectDirs</code>, <code>Profile</code>) are <code>#[non_exhaustive]</code>, which forbids construction from <em>other</em> crates but not from within this one — so the GUI can build command structs and call <code>.run()</code> directly, reusing manifest fetching, system integration, and storage writes instead of re-implementing or shelling out. See <a href="data-model.gen.html">Data Model &amp; Storage</a> and <a href="cli.gen.html">CLI &amp; Command Model</a>.</p>
+
+<h2 id="5-on-disk-state">5. On-disk state</h2>
+
+<p>A web app is fully described by files. There is no hidden runtime database; deleting the directories below removes the app.</p>
+
+<table>
+<thead>
+<tr>
+<th> Path </th>
+<th> Holds </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>~/.local/share/ffwebapps/config.json</code> </td>
+<td> The <code>Storage</code>: every <code>Site</code>, every <code>Profile</code>, and the global <code>Config</code> </td>
+</tr>
+<tr>
+<td> <code>~/.local/share/ffwebapps/profiles/&lt;profile-ulid&gt;/</code> </td>
+<td> The Firefox profile for that profile&rsquo;s apps (<code>user.js</code>, <code>chrome/</code>, <code>taskbartabs/</code>, <code>ffwebapps.css/js</code>) </td>
+</tr>
+<tr>
+<td> <code>~/.local/share/ffwebapps/runtime/</code> </td>
+<td> The runtime — symlinks to the system Firefox when installed with <code>--link</code> </td>
+</tr>
+<tr>
+<td> <code>~/.local/share/applications/FFPWA-&lt;ulid&gt;.desktop</code> </td>
+<td> The launcher that appears in the app menu </td>
+</tr>
+<tr>
+<td> <code>~/.local/share/icons/hicolor/&lt;size&gt;/apps/FFPWA-&lt;ulid&gt;.png</code> </td>
+<td> Rasterised app icons </td>
+</tr>
+<tr>
+<td> <code>~/.config/autostart/FFPWA-&lt;ulid&gt;.desktop</code> </td>
+<td> Present only when <em>launch on login</em> is enabled </td>
+</tr>
+<tr>
+<td> <code>$XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock</code> </td>
+<td> The live IPC socket — exists only while the app runs </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Profiles are the unit of isolation: several apps can share one Firefox profile (and thus cookies, storage, and per-profile CSS/JS), or each can have its own. The Nil-ULID profile is the shared &ldquo;Default&rdquo;.</p>
+
+<h2 id="6-lifecycle-of-an-app">6. Lifecycle of an app</h2>
+
+<p>A single <code>site install</code> followed by a launch touches most of the system. The sequence makes the boundaries concrete:</p>
+
+<ol>
+<li><strong>Install</strong> (<code>ffwebapps site install &lt;MANIFEST_URL&gt; --document-url &lt;PAGE&gt;</code>): the library fetches the web-app manifest and icons, mints a ULID and a <code>webapp_id</code> (a UUID), writes the <code>Site</code> into <code>config.json</code>, generates the <code>.desktop</code> launcher and icons, and — on KDE — a <code>kwinrulesrc</code> position rule.</li>
+<li><strong>Launch</strong> (from the menu or <code>site launch &lt;ULID&gt;</code>): the console first <strong>probes the socket</strong>. If it connects, the app is already running, so it sends <code>show</code> and exits — the single-instance guarantee. Otherwise it writes <code>taskbartabs.json</code> and <code>user.js</code>, builds the Firefox argv, and spawns the runtime, optionally under a scheduling policy.</li>
+<li><strong>Run</strong>: Firefox loads <code>_autoconfig.cfg</code>, which binds the socket, takes ownership of the window&rsquo;s hide/show, starts routing out-of-scope links, injects any per-app CSS/JS, and begins exporting the unread count.</li>
+<li><strong>Tray</strong>: the runtime (via the launch path) spawns <code>ffwebapps-tray</code>, which connects to the socket, draws the icon, and relays menu actions back as verbs.</li>
+<li><strong>Close to tray</strong>: the window&rsquo;s X is intercepted and turned into a hide <em>while a tray client is connected</em>; otherwise it really closes. <strong>Quit</strong> (from the tray menu) sends <code>quit</code>, the runtime tears the socket down, and the tray sees EOF and exits.</li>
+</ol>
+
+
+<h2 id="7-the-one-ipc-boundary">7. The one IPC boundary</h2>
+
+<p>The entire live surface is a single Unix-domain socket, <strong>served by the Firefox runtime</strong> and consumed by thin clients. It uses a newline-delimited text protocol:</p>
+
+<pre><code class="language-text code-block">
+client -&gt; runtime : hello v1 tray | hello v1 launcher
+                    show | hide | toggle | quit | reload
+                    mute-toggle | dnd-toggle | suspend-toggle
+                    autostart-toggle | copy-url | open-browser
+runtime -&gt; client : hello v1 &lt;pid&gt;            (once, on connect)
+                    unread &lt;n&gt;                (on change)
+                    state hidden=… muted=… dnd=… suspend=… autostart=…
+</code></pre>
+
+
+<p>There are <strong>no pidfiles and no sentinel files</strong>: the runtime is alive if and only if the socket accepts a connection. That single invariant powers the singleton launcher, the tray&rsquo;s liveness detection, and the GUI&rsquo;s running/hidden status dot. The full protocol, the runtime-owned-window model, and the KWin hide/show mechanism are documented in <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>.</p>
+
+<h2 id="8-source-layout">8. Source layout</h2>
+
+<table>
+<thead>
+<tr>
+<th> Path </th>
+<th> Purpose </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>src/bin/ffwebapps.rs</code> </td>
+<td> CLI entrypoint — <code>App::parse().run()</code> </td>
+</tr>
+<tr>
+<td> <code>src/bin/ffwebapps-tray.rs</code> </td>
+<td> The <code>ksni</code> tray helper </td>
+</tr>
+<tr>
+<td> <code>src/bin/ffwebapps-gtk/</code> </td>
+<td> The GTK4 management GUI (its own <code>core</code> / <code>ipc</code> / <code>ui</code> modules) </td>
+</tr>
+<tr>
+<td> <code>src/components/</code> </td>
+<td> <code>Site</code>, <code>Profile</code>, <code>Runtime</code>, and the <code>taskbartabs</code> registry writer </td>
+</tr>
+<tr>
+<td> <code>src/console/</code> </td>
+<td> clap command structs (<code>app</code>, <code>profile</code>, <code>runtime</code>) and the <code>Run</code> trait </td>
+</tr>
+<tr>
+<td> <code>src/integrations/</code> </td>
+<td> Desktop integration; <code>implementation/linux.rs</code> is the Linux backend </td>
+</tr>
+<tr>
+<td> <code>src/storage.rs</code>, <code>src/directories.rs</code> </td>
+<td> <code>Storage</code> / <code>Config</code> and the on-disk path resolver </td>
+</tr>
+<tr>
+<td> <code>userchrome/runtime/_autoconfig.cfg</code> </td>
+<td> The privileged runtime JS — the heart of the running app </td>
+</tr>
+<tr>
+<td> <code>userchrome/profile/chrome/userChrome.css</code> </td>
+<td> The chromeless titlebar styling </td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="9-design-rules">9. Design rules</h2>
+
+<p>The architecture holds together because of a few deliberate choices, several of them learned the hard way (see the gotchas in each page):</p>
+
+<ul>
+<li><strong>Drive Firefox&rsquo;s first-party features; never patch its chrome.</strong> The chromeless look and all behaviour come from supported extension points.</li>
+<li><strong>The runtime owns its window and lifecycle.</strong> Hide/show, close-to-tray, and quit are decided <em>inside</em> the Firefox process, not by an external window-manager script reaching in.</li>
+<li><strong>One socket, one invariant.</strong> Liveness is &ldquo;the socket accepts&rdquo;; no pidfiles, no polling, no sentinels.</li>
+<li><strong>The tray spawns nothing.</strong> It is a pure remote — zero <code>Command::new</code> calls — so it can never launch, relaunch, or strand a process.</li>
+<li><strong>Config is files, owned by ffwebapps.</strong> A web app&rsquo;s profile <code>user.js</code> and registry are managed by the library and regenerated at launch; nothing is hidden in opaque daemon state.</li>
+<li><strong>Call the library in-process.</strong> The GUI reuses the CLI&rsquo;s code paths rather than parsing CLI text or duplicating logic.</li>
+</ul>
+
+
+<h2 id="10-document-index">10. Document index</h2>
+
+<table>
+<thead>
+<tr>
+<th> Document </th>
+<th> Covers </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a> </td>
+<td> Driving Web Apps / Taskbar Tabs, the privileged <code>_autoconfig.cfg</code>, <code>userChrome.css</code>, and profile prefs </td>
+</tr>
+<tr>
+<td> <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a> </td>
+<td> The socket protocol, close-to-tray, and the KWin hide/show mechanism </td>
+</tr>
+<tr>
+<td> <a href="data-model.gen.html">Data Model &amp; Storage</a> </td>
+<td> <code>Storage</code>, <code>Config</code>, <code>Site</code>, <code>Profile</code>, <code>Runtime</code>, ULIDs, and the on-disk layout </td>
+</tr>
+<tr>
+<td> <a href="cli.gen.html">CLI &amp; Command Model</a> </td>
+<td> The clap command tree, the <code>Run</code> trait, and the update-value semantics </td>
+</tr>
+<tr>
+<td> <a href="tray.gen.html">System Tray</a> </td>
+<td> The <code>ksni</code> <code>StatusNotifierItem</code>, the flock singleton, and the menu </td>
+</tr>
+<tr>
+<td> <a href="gtk-gui.gen.html">GTK Management GUI</a> </td>
+<td> The <code>ffwebapps-gtk</code> app: pages, off-thread workers, and live control </td>
+</tr>
+<tr>
+<td> <a href="link-routing.gen.html">Link Routing &amp; Scope</a> </td>
+<td> Two-layer out-of-scope interception and the in-app allow-list </td>
+</tr>
+<tr>
+<td> <a href="desktop-integration.gen.html">Desktop Integration</a> </td>
+<td> <code>.desktop</code> launchers, icons, autostart, window identity, and KWin rules </td>
+</tr>
+<tr>
+<td> <a href="performance.gen.html">Performance Tuning</a> </td>
+<td> <code>--hardware-webrtc</code>, <code>--scheduling</code>, <code>--software-rendering</code>, and memory </td>
+</tr>
+<tr>
+<td> <a href="install.gen.html">Build, Install &amp; Packaging</a> </td>
+<td> Building, the runtime link step, and packaging </td>
+</tr>
+</tbody>
+</table>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

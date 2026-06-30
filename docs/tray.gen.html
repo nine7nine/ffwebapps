@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — System Tray</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--system-tray">ffwebapps — System Tray</h1>
+
+<p>This page documents <code>ffwebapps-tray</code>: a <code>StatusNotifierItem</code> that shows each app&rsquo;s icon, unread badge, and menu, and is built around one deliberate constraint — it can spawn nothing and holds no authoritative state of its own.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-a-tray-that-does-almost-nothing">A tray that does almost nothing</a></li>
+<li><a href="#2-the-flock-singleton">The flock singleton</a></li>
+<li><a href="#3-connecting-to-the-runtime">Connecting to the runtime</a></li>
+<li><a href="#4-state-is-pushed-never-polled">State is pushed, never polled</a></li>
+<li><a href="#5-the-menu">The menu</a></li>
+<li><a href="#6-quit-and-the-sigkill-fallback">Quit and the SIGKILL fallback</a></li>
+<li><a href="#7-surviving-a-plasma-restart">Surviving a Plasma restart</a></li>
+<li><a href="#8-how-it-gets-launched">How it gets launched</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-a-tray-that-does-almost-nothing">1. A tray that does almost nothing</h2>
+
+<p><code>ffwebapps-tray</code> (<code>src/bin/ffwebapps-tray.rs</code>) is a <code>StatusNotifierItem</code> built on the <code>ksni</code> crate. Its entire job is to draw an icon with an unread badge and a menu, and to translate clicks into socket verbs. The defining property is what it <em>cannot</em> do:</p>
+
+<blockquote><p><strong>The tray spawns nothing.</strong> There is no <code>std::process::Command</code> anywhere in the file. The only process-control primitive is a single <code>libc::kill</code> syscall used by Quit.</p></blockquote>
+
+<p>This is a direct response to a class of bugs where a tray &ldquo;helpfully&rdquo; relaunched its app and produced orphans or zombie windows. Because the tray can never launch anything, it can never relaunch, duplicate, or strand a process. Every user action — show, hide, reload, mute, quit — is a pure socket write; the runtime does the actual work.</p>
+
+<p>The tray is a thin remote of the runtime. The runtime is the single source of truth for window visibility and every toggle; the tray merely reflects what the runtime pushes and forwards what the user clicks.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg     { fill: #1a1b26; }
+    .tray   { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .rt     { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .box    { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .lbl    { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur{ fill: #bb9af7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy { fill: #7dcfff; font-size: 10px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln     { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title  { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="900" height="360" class="bg" rx="6"/>
+  <text x="450" y="26" text-anchor="middle" class="title">tray = StatusNotifierItem + reader thread, both over one socket</text>
+
+  <rect x="40" y="56" width="360" height="250" class="tray" rx="6"/>
+  <text x="220" y="78" text-anchor="middle" class="lbl-blu">ffwebapps-tray  (flock singleton)</text>
+  <rect x="60" y="92" width="320" height="58" class="box" rx="6"/>
+  <text x="220" y="112" text-anchor="middle" class="lbl-sm">ksni StatusNotifierItem</text>
+  <text x="220" y="128" text-anchor="middle" class="lbl-mut">icon + "mail-unread" overlay badge</text>
+  <text x="220" y="142" text-anchor="middle" class="lbl-mut">menu built from the latest state snapshot</text>
+  <rect x="60" y="160" width="320" height="54" class="box" rx="6"/>
+  <text x="220" y="180" text-anchor="middle" class="lbl-sm">reader thread</text>
+  <text x="220" y="196" text-anchor="middle" class="lbl-mut">BufReader::lines() → State (RwLock)</text>
+  <text x="220" y="208" text-anchor="middle" class="lbl-mut">EOF ⇒ std::process::exit(0)</text>
+  <rect x="60" y="224" width="320" height="58" class="box" rx="6"/>
+  <text x="220" y="244" text-anchor="middle" class="lbl-sm">send(verb)</text>
+  <text x="220" y="260" text-anchor="middle" class="lbl-mut">write "&lt;verb&gt;\n" — the ONLY outward action</text>
+  <text x="220" y="274" text-anchor="middle" class="lbl-mut">no Command::new anywhere</text>
+
+  <rect x="520" y="110" width="340" height="150" class="rt" rx="6"/>
+  <text x="690" y="132" text-anchor="middle" class="lbl-pur">Firefox runtime  (socket server)</text>
+  <text x="690" y="154" text-anchor="middle" class="lbl-mut">authoritative: hidden / muted / dnd /</text>
+  <text x="690" y="168" text-anchor="middle" class="lbl-mut">suspend / autostart / unread</text>
+  <text x="690" y="190" text-anchor="middle" class="lbl-mut">pushes: hello v1 &lt;pid&gt;, unread, state</text>
+  <text x="690" y="212" text-anchor="middle" class="lbl-mut">receives: toggle, reload, quit,</text>
+  <text x="690" y="226" text-anchor="middle" class="lbl-mut">mute/dnd/suspend/autostart-toggle, …</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="400" y1="187" x2="520" y2="170" class="ln"/>
+  <text x="410" y="160" class="lbl-cy">unread / state  ←</text>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="400" y1="253" x2="520" y2="210" class="ln"/>
+  <text x="410" y="280" class="lbl-cy">verbs  →</text>
+</svg>
+</div>
+
+
+<h2 id="2-the-flock-singleton">2. The flock singleton</h2>
+
+<p>Exactly one tray may exist per app. The guard is an advisory file lock (<code>acquire_singleton</code>, <code>ffwebapps-tray.rs:92-98</code>): the tray opens <code>$XDG_RUNTIME_DIR/ffwebapps-tray-&lt;id&gt;.lock</code> and takes <code>flock(fd, LOCK_EX | LOCK_NB)</code>. If the lock is already held, a tray already owns this app and the new process exits immediately. The lock file is held for the whole process lifetime.</p>
+
+<p><code>flock</code> was chosen because the kernel releases the lock automatically when the process exits or dies — there are no stale lock files to clean up and no PID-reuse hazard. It is the same &ldquo;let the OS track liveness&rdquo; philosophy as the runtime&rsquo;s socket.</p>
+
+<h2 id="3-connecting-to-the-runtime">3. Connecting to the runtime</h2>
+
+<p>The tray derives the socket path purely from the ULID it was given — <code>$XDG_RUNTIME_DIR/ffwebapps-&lt;id&gt;.sock</code> — no path is ever passed in. Because the tray is usually spawned right after Firefox, before Firefox has bound the socket, <code>connect()</code> retries (<code>ffwebapps-tray.rs:104-113</code>):</p>
+
+<ul>
+<li>Poll every <strong>250 ms</strong> for up to <strong>30 seconds</strong>.</li>
+<li>On success, send <code>hello v1 tray\n</code> and start the reader.</li>
+<li>On timeout, log &ldquo;runtime never came up → tray exiting&rdquo; and exit.</li>
+</ul>
+
+
+<p>The <code>hello v1 tray</code> handshake is what tells the runtime to treat this connection as a tray — which is what enables close-to-tray (the runtime only intercepts a window close <em>while a tray client is connected</em>; see <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>).</p>
+
+<h2 id="4-state-is-pushed-never-polled">4. State is pushed, never polled</h2>
+
+<p>A dedicated reader thread consumes the socket line-by-line (<code>ffwebapps-tray.rs:329-374</code>) and updates a shared <code>State</code> behind an <code>RwLock</code>. It parses three message kinds:</p>
+
+<ul>
+<li><code>hello v1 &lt;pid&gt;</code> → records the runtime PID (needed for the Quit fallback).</li>
+<li><code>unread &lt;n&gt;</code> → updates the badge, redrawing only when the count changed.</li>
+<li><code>state hidden=… muted=… dnd=… suspend=… autostart=…</code> → updates the five toggle flags and refreshes the menu.</li>
+</ul>
+
+
+<p>The unread badge is rendered as a quiet <code>mail-unread</code> overlay icon (no pulsing) and surfaced again in the tooltip as &ldquo;N unread&rdquo;. The tray holds no state of its own and never asks the runtime for anything — it only reacts to pushes. When the runtime closes the socket, <code>BufReader::lines()</code> ends, and the thread logs &ldquo;runtime closed the connection → tray exiting&rdquo; and calls <code>std::process::exit(0)</code>. The flock then releases automatically. This is what binds the tray&rsquo;s lifetime to its app&rsquo;s.</p>
+
+<h2 id="5-the-menu">5. The menu</h2>
+
+<p>The menu (<code>ffwebapps-tray.rs:210-283</code>) is rebuilt from the latest state snapshot on each draw, so labels and checkmarks always reflect the runtime:</p>
+
+<table>
+<thead>
+<tr>
+<th> Item </th>
+<th> Sends </th>
+<th> Notes </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Show / Hide</strong> </td>
+<td> <code>toggle</code> </td>
+<td> Label flips on the <code>hidden</code> flag </td>
+</tr>
+<tr>
+<td> <strong>Reload</strong> </td>
+<td> <code>reload</code> </td>
+<td> </td>
+</tr>
+<tr>
+<td> <strong>Mute</strong> </td>
+<td> <code>mute-toggle</code> </td>
+<td> Checkmark = <code>muted</code> </td>
+</tr>
+<tr>
+<td> <strong>Do not disturb</strong> </td>
+<td> <code>dnd-toggle</code> </td>
+<td> Checkmark = <code>dnd</code> </td>
+</tr>
+<tr>
+<td> <strong>Suspend when hidden</strong> </td>
+<td> <code>suspend-toggle</code> </td>
+<td> Checkmark = <code>suspend</code> </td>
+</tr>
+<tr>
+<td> <strong>Start on login</strong> </td>
+<td> <code>autostart-toggle</code> </td>
+<td> Checkmark = <code>autostart</code> </td>
+</tr>
+<tr>
+<td> <strong>Copy URL</strong> </td>
+<td> <code>copy-url</code> </td>
+<td> </td>
+</tr>
+<tr>
+<td> <strong>Open page in browser</strong> </td>
+<td> <code>open-browser</code> </td>
+<td> </td>
+</tr>
+<tr>
+<td> <strong>Quit</strong> </td>
+<td> (see §6) </td>
+<td> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Note that Show/Hide always sends <code>toggle</code>, never <code>show</code>/<code>hide</code> directly — only the runtime knows the true visibility, so it makes the decision. The checkable items are interesting because the runtime <em>persists</em> most of them as Firefox prefs (<code>ffwebapps.muted</code>, <code>dom.webnotifications.enabled</code>, <code>ffwebapps.suspendWhenHidden</code>), and &ldquo;Start on login&rdquo; is backed by the actual existence of the autostart <code>.desktop</code> file — so the checkmark can never lie about reality.</p>
+
+<h2 id="6-quit-and-the-sigkill-fallback">6. Quit and the SIGKILL fallback</h2>
+
+<p>Quit is the one place the tray reaches past the socket, and it does so with a syscall, not a subprocess (<code>quit_app</code>, <code>ffwebapps-tray.rs:159-169</code>):</p>
+
+<ol>
+<li>Snapshot the runtime PID (learned from the <code>hello v1 &lt;pid&gt;</code> line).</li>
+<li>Send <code>quit</code> over the socket.</li>
+<li>Sleep <strong>5 seconds</strong> to let the runtime tear down cleanly.</li>
+<li>If the PID is known, <code>libc::kill(pid, SIGKILL)</code> as a guaranteed teardown.</li>
+<li><code>std::process::exit(0)</code>.</li>
+</ol>
+
+
+<p>The fallback exists so Quit always wins: even if the runtime hangs during shutdown, the app cannot survive as a trayless, unreachable window. Using a direct <code>kill</code> syscall (rather than spawning <code>pkill</code>) keeps the &ldquo;tray spawns nothing&rdquo; invariant intact — and avoids the classic <code>pkill -f ffwebapps-tray</code> footgun of matching one&rsquo;s own shell.</p>
+
+<h2 id="7-surviving-a-plasma-restart">7. Surviving a Plasma restart</h2>
+
+<p><code>ksni</code>&rsquo;s <code>service.run()</code> returns when the StatusNotifier host (e.g. <code>plasmashell</code>) goes away — which happens on a Plasma restart. The tray wraps it in a loop (<code>ffwebapps-tray.rs:380-389</code>): on return it waits 500 ms and re-creates the service, so the icon reappears once the new host is up. The live <code>Handle</code> is swapped into a shared slot so the reader thread always pushes badge/menu refreshes to the current generation.</p>
+
+<h2 id="8-how-it-gets-launched">8. How it gets launched</h2>
+
+<p>The tray is spawned only by <code>spawn_tray</code> (<code>console/site.rs:45-68</code>), from two places: after a normal launch, and on the already-running focus path (so a relaunch that just focuses an existing window still guarantees a tray exists). It is invoked as:</p>
+
+<pre><code class="language-text code-block">
+ffwebapps-tray --id &lt;ULID&gt; --name &lt;App Name&gt; --icon FFPWA-&lt;ULID&gt;
+</code></pre>
+
+
+<p>The binary is discovered next to the running <code>ffwebapps</code> (via <code>current_exe()</code>), falling back to <code>dirs.executables</code>. That ordering is deliberate: the <code>.desktop</code> launcher does not set <code>FFPWA_EXECUTABLES</code>, so a menu/taskbar launch would otherwise resolve the tray to the wrong directory and silently fail to start. <code>--wmclass</code> and <code>--exec</code> are still accepted but ignored, for compatibility with older launchers.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

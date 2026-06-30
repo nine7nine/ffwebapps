@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — Data Model & Storage</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--data-model--storage">ffwebapps — Data Model &amp; Storage</h1>
+
+<p>This page documents how ffwebapps describes a web app on disk: the <code>Storage</code> / <code>Config</code> / <code>Site</code> / <code>Profile</code> / <code>Runtime</code> types, the ULID and UUID identifiers, and the directory layout that makes an app fully file-described.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-everything-is-a-file">Everything is a file</a></li>
+<li><a href="#2-storage-and-configjson">Storage and config.json</a></li>
+<li><a href="#3-config-global-runtime-options">Config: global runtime options</a></li>
+<li><a href="#4-site-and-siteconfig">Site and SiteConfig</a></li>
+<li><a href="#5-profiles">Profiles</a></li>
+<li><a href="#6-the-runtime">The Runtime</a></li>
+<li><a href="#7-identifiers-ulid-vs-uuid">Identifiers: ULID vs UUID</a></li>
+<li><a href="#8-on-disk-layout">On-disk layout</a></li>
+<li><a href="#9-projectdirs-and-overrides">ProjectDirs and overrides</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-everything-is-a-file">1. Everything is a file</h2>
+
+<p>ffwebapps has no database and no daemon holding state. A web app is described entirely by a record in <code>config.json</code> plus the files generated from it (the Firefox profile, the <code>.desktop</code> launcher, the icons). Delete those and the app is gone; copy <code>config.json</code> and the profile directory and the app moves with you.</p>
+
+<p>The model is small and lives in two places: <code>src/storage.rs</code> (the top-level <code>Storage</code> and global <code>Config</code>) and <code>src/components/</code> (<code>Site</code>, <code>Profile</code>, <code>Runtime</code>). Every core type is <code>#[non_exhaustive]</code>, which forbids other crates from constructing or exhaustively matching them — the reason the GUI had to be a binary <em>in the same crate</em> (see <a href="architecture.gen.html">Architecture</a>).</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 900 410" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg     { fill: #1a1b26; }
+    .stor   { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .site   { fill: #1a2a1a; stroke: #9ece6a; stroke-width: 1.5; }
+    .prof   { fill: #2a1f35; stroke: #bb9af7; stroke-width: 1.5; }
+    .box    { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .lbl    { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-grn{ fill: #9ece6a; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-pur{ fill: #bb9af7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln     { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title  { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="900" height="410" class="bg" rx="6"/>
+  <text x="450" y="26" text-anchor="middle" class="title">config.json  →  Storage</text>
+
+  <rect x="280" y="44" width="340" height="92" class="stor" rx="6"/>
+  <text x="450" y="64" text-anchor="middle" class="lbl-blu">Storage</text>
+  <text x="450" y="82" text-anchor="middle" class="lbl-mut">profiles: BTreeMap&lt;Ulid, Profile&gt;</text>
+  <text x="450" y="96" text-anchor="middle" class="lbl-mut">sites: BTreeMap&lt;Ulid, Site&gt;</text>
+  <text x="450" y="110" text-anchor="middle" class="lbl-mut">config: Config</text>
+  <text x="450" y="126" text-anchor="middle" class="lbl-mut">arguments: Vec&lt;String&gt;   variables: BTreeMap</text>
+
+  <!-- sites -->
+  <rect x="40" y="190" width="260" height="180" class="site" rx="6"/>
+  <text x="170" y="210" text-anchor="middle" class="lbl-grn">Site</text>
+  <text x="170" y="228" text-anchor="middle" class="lbl-mut">ulid: Ulid          (the app ID)</text>
+  <text x="170" y="242" text-anchor="middle" class="lbl-mut">profile: Ulid       (→ a Profile)</text>
+  <text x="170" y="256" text-anchor="middle" class="lbl-mut">manifest: WebAppManifest</text>
+  <rect x="56" y="266" width="228" height="92" class="box" rx="6"/>
+  <text x="170" y="284" text-anchor="middle" class="lbl-sm">config: SiteConfig</text>
+  <text x="170" y="300" text-anchor="middle" class="lbl-mut">document_url, manifest_url</text>
+  <text x="170" y="314" text-anchor="middle" class="lbl-mut">webapp_id: Uuid, scheduling,</text>
+  <text x="170" y="328" text-anchor="middle" class="lbl-mut">external_links, allowed_domains,</text>
+  <text x="170" y="344" text-anchor="middle" class="lbl-mut">hardware_webrtc, user_agent, …</text>
+
+  <!-- config -->
+  <rect x="320" y="190" width="260" height="100" class="stor" rx="6"/>
+  <text x="450" y="210" text-anchor="middle" class="lbl-blu">Config  (global)</text>
+  <text x="450" y="228" text-anchor="middle" class="lbl-mut">always_patch</text>
+  <text x="450" y="242" text-anchor="middle" class="lbl-mut">runtime_enable_wayland</text>
+  <text x="450" y="256" text-anchor="middle" class="lbl-mut">runtime_use_xinput2 / _portals</text>
+  <text x="450" y="270" text-anchor="middle" class="lbl-mut">use_linked_runtime</text>
+
+  <!-- profiles -->
+  <rect x="600" y="190" width="260" height="120" class="prof" rx="6"/>
+  <text x="730" y="210" text-anchor="middle" class="lbl-pur">Profile</text>
+  <text x="730" y="228" text-anchor="middle" class="lbl-mut">ulid: Ulid  (nil = "Default")</text>
+  <text x="730" y="242" text-anchor="middle" class="lbl-mut">name: Option&lt;String&gt;</text>
+  <text x="730" y="256" text-anchor="middle" class="lbl-mut">description: Option&lt;String&gt;</text>
+  <text x="730" y="270" text-anchor="middle" class="lbl-mut">sites: Vec&lt;Ulid&gt;</text>
+  <text x="730" y="292" text-anchor="middle" class="lbl-mut">one Firefox profile dir per Profile</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="370" y1="136" x2="170" y2="190" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="450" y1="136" x2="450" y2="190" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="540" y1="136" x2="730" y2="190" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="300" y1="248" x2="320" y2="248" class="ln"/>
+  <text x="300" y="180" class="lbl-mut">Site.profile → Profile.ulid; Profile.sites → Site.ulid</text>
+</svg>
+</div>
+
+
+<h2 id="2-storage-and-configjson">2. Storage and config.json</h2>
+
+<p><code>Storage</code> (<code>storage.rs:58-77</code>) is the whole serialized model, read from and written to <code>~/.local/share/ffwebapps/config.json</code>:</p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Type </th>
+<th> Holds </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>profiles</code> </td>
+<td> <code>BTreeMap&lt;Ulid, Profile&gt;</code> </td>
+<td> Every profile, keyed by ULID; defaults to one entry — the Nil-ULID &ldquo;Default&rdquo; </td>
+</tr>
+<tr>
+<td> <code>sites</code> </td>
+<td> <code>BTreeMap&lt;Ulid, Site&gt;</code> </td>
+<td> Every web app, keyed by ULID </td>
+</tr>
+<tr>
+<td> <code>config</code> </td>
+<td> <code>Config</code> </td>
+<td> The global runtime options </td>
+</tr>
+<tr>
+<td> <code>arguments</code> </td>
+<td> <code>Vec&lt;String&gt;</code> </td>
+<td> Extra argv appended to every Firefox launch </td>
+</tr>
+<tr>
+<td> <code>variables</code> </td>
+<td> <code>BTreeMap&lt;String, String&gt;</code> </td>
+<td> Extra environment variables for every launch </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>Storage::load</code> (<code>storage.rs:80-93</code>) returns <code>Self::default()</code> when the file is absent — so a first run already has the Default profile. <code>Storage::write</code> (<code>storage.rs:95-105</code>) truncates and rewrites the whole file: pretty JSON in debug builds, compact in release. There is no locking; because both <code>BTreeMap</code>s are keyed by time-ordered ULIDs, the JSON keys come out sorted and stable.</p>
+
+<h2 id="3-config-global-runtime-options">3. Config: global runtime options</h2>
+
+<p><code>Config</code> (<code>storage.rs:18-56</code>) holds options that apply to every app&rsquo;s runtime launch. All default to <code>false</code>.</p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Effect at launch </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>always_patch</code> </td>
+<td> Re-patch the runtime and profile on every launch (no effect on macOS) </td>
+</tr>
+<tr>
+<td> <code>runtime_enable_wayland</code> </td>
+<td> Sets <code>MOZ_ENABLE_WAYLAND=1</code> </td>
+</tr>
+<tr>
+<td> <code>runtime_use_xinput2</code> </td>
+<td> Sets <code>MOZ_USE_XINPUT2=1</code> </td>
+</tr>
+<tr>
+<td> <code>runtime_use_portals</code> </td>
+<td> Sets <code>GTK_USE_PORTAL=1</code> (XDG Desktop Portals) </td>
+</tr>
+<tr>
+<td> <code>use_linked_runtime</code> </td>
+<td> Linux only: use the symlinked system Firefox instead of a downloaded copy </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>use_linked_runtime</code> is not toggled directly — it is set as a side effect of <code>runtime install --link</code> vs <code>runtime install</code> (see <a href="#6-the-runtime">The Runtime</a>). The Wayland/XInput2/portal flags are consumed in <code>Site::launch</code> (<code>site.rs:301-309</code>).</p>
+
+<h2 id="4-site-and-siteconfig">4. Site and SiteConfig</h2>
+
+<p>A <code>Site</code> (<code>site.rs:176-195</code>) is one installed app: a <code>ulid</code>, the <code>profile</code> it belongs to, the parsed web-app <code>manifest</code>, and its <code>config</code>. The interesting surface is <code>SiteConfig</code> (<code>site.rs:33-145</code>), which mixes <strong>required</strong> anchors with <strong>optional</strong> overrides of manifest-provided values.</p>
+
+<p><strong>Required</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Type </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>document_url</code> </td>
+<td> <code>Url</code> </td>
+<td> The site&rsquo;s main page </td>
+</tr>
+<tr>
+<td> <code>manifest_url</code> </td>
+<td> <code>Url</code> </td>
+<td> The web-app manifest — may be a <code>data:</code> URL for non-PWA sites </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><strong>Overrides (unset = use the manifest)</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Type </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>name</code>, <code>description</code> </td>
+<td> <code>Option&lt;String&gt;</code> </td>
+</tr>
+<tr>
+<td> <code>start_url</code>, <code>icon_url</code> </td>
+<td> <code>Option&lt;Url&gt;</code> </td>
+</tr>
+<tr>
+<td> <code>categories</code>, <code>keywords</code> </td>
+<td> <code>Option&lt;Vec&lt;String&gt;&gt;</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><strong>Behaviour &amp; identity</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Type </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>webapp_id</code> </td>
+<td> <code>Option&lt;Uuid&gt;</code> </td>
+<td> Stable Taskbar-Tabs registry ID; also the Wayland <code>app_id</code> and <code>.desktop</code> <code>StartupWMClass</code> </td>
+</tr>
+<tr>
+<td> <code>enabled_url_handlers</code> </td>
+<td> <code>Vec&lt;String&gt;</code> </td>
+<td> URL scopes intercepted into the app window </td>
+</tr>
+<tr>
+<td> <code>enabled_protocol_handlers</code> </td>
+<td> <code>Vec&lt;String&gt;</code> </td>
+<td> Protocol schemes registered with the OS </td>
+</tr>
+<tr>
+<td> <code>custom_protocol_handlers</code> </td>
+<td> <code>Vec&lt;ProtocolHandlerResource&gt;</code> </td>
+<td> Schemes registered via <code>registerProtocolHandler</code> </td>
+</tr>
+<tr>
+<td> <code>launch_on_login</code> </td>
+<td> <code>bool</code> </td>
+<td> Write an autostart entry </td>
+</tr>
+<tr>
+<td> <code>launch_on_browser</code> </td>
+<td> <code>bool</code> </td>
+<td> Launch when the browser launches </td>
+</tr>
+<tr>
+<td> <code>start_hidden</code> </td>
+<td> <code>bool</code> </td>
+<td> Autostart launch goes straight to the tray </td>
+</tr>
+<tr>
+<td> <code>external_links</code> </td>
+<td> <code>Option&lt;bool&gt;</code> </td>
+<td> Route out-of-scope links to the browser (<strong>unset ⇒ on</strong>) </td>
+</tr>
+<tr>
+<td> <code>allowed_domains</code> </td>
+<td> <code>Vec&lt;String&gt;</code> </td>
+<td> Wildcard domains kept in-window (empty ⇒ scope-derived default) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><strong>Performance</strong></p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Type </th>
+<th> Meaning </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>hardware_webrtc</code> </td>
+<td> <code>bool</code> </td>
+<td> Force HW video decode past Firefox&rsquo;s blocklist + HW VP8 path </td>
+</tr>
+<tr>
+<td> <code>software_rendering</code> </td>
+<td> <code>bool</code> </td>
+<td> Disable all GPU use — <strong>overrides <code>hardware_webrtc</code></strong> </td>
+</tr>
+<tr>
+<td> <code>scheduling</code> </td>
+<td> <code>Option&lt;String&gt;</code> </td>
+<td> Process scheduling policy applied at launch </td>
+</tr>
+<tr>
+<td> <code>user_agent</code> </td>
+<td> <code>Option&lt;String&gt;</code> </td>
+<td> UA override (unset ⇒ Firefox default) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The <code>scheduling</code> string has a small grammar realized by <code>scheduling_launcher</code> (<code>site.rs:151-174</code>): <code>nice:&lt;n&gt;</code> → <code>nice -n &lt;n&gt;</code>, <code>rr:&lt;p&gt;</code> / <code>fifo:&lt;p&gt;</code> → <code>chrt -r/-f &lt;p&gt;</code>, <code>batch</code> → <code>chrt -b 0</code>, <code>idle</code> → <code>chrt -i 0</code>. The launcher wraps the runtime as <code>sh -c '&lt;sched&gt; "$@" || exec "$@"'</code>, so an unprivileged RT request falls back to a normal launch rather than failing. These knobs are explained in <a href="performance.gen.html">Performance Tuning</a>.</p>
+
+<p><code>Site</code> also carries small resolver methods that fall back through config → manifest → derived defaults: <code>url()</code>, <code>domain()</code>, <code>name()</code>, <code>description()</code>, <code>icons()</code>, <code>categories()</code>, <code>keywords()</code> (<code>site.rs:320-417</code>). Notably the GTK GUI deliberately <em>avoids</em> <code>name()</code>/<code>domain()</code> because they <code>unreachable!</code>-panic on a malformed manifest, using non-panicking equivalents instead.</p>
+
+<h2 id="5-profiles">5. Profiles</h2>
+
+<p>A <code>Profile</code> (<code>profile.rs:11-33</code>) groups apps that share a Firefox profile — and therefore cookies, storage, and per-profile CSS/JS injection. It is just a <code>ulid</code>, an optional <code>name</code> and <code>description</code>, and a <code>sites: Vec&lt;Ulid&gt;</code> back-reference.</p>
+
+<p>The <strong>Nil-ULID profile</strong> is special (<code>profile.rs:36-46</code>): a profile with <code>Ulid::nil()</code>, named &ldquo;Default&rdquo;, always exists and is the default target for new apps. It cannot be fully removed — removing it clears its apps but the profile stays. Its directory on disk is <code>profiles/00000000000000000000000000/</code>.</p>
+
+<p><code>Profile::patch</code> (<code>profile.rs:54-74</code>) refreshes the profile&rsquo;s chrome assets: it copies <code>sysdata/userchrome/profile/</code> (the <code>chrome/userChrome.css</code>) into the profile directory, after removing <code>startupCache/</code> and <code>chrome/pwa/</code>. It deliberately does <strong>not</strong> touch <code>user.js</code> or the <code>ffwebapps.css</code>/<code>ffwebapps.js</code> injection files, so those persist across patches. Profile <strong>templates</strong> (a CLI/GUI feature) copy the contents of a user-supplied directory into a new profile at creation time.</p>
+
+<h2 id="6-the-runtime">6. The Runtime</h2>
+
+<p><code>Runtime</code> (<code>runtime.rs:152-235</code>) describes the Firefox install ffwebapps owns: a <code>version</code> (only <code>Some</code> when actually installed, parsed from <code>application.ini</code>&rsquo;s <code>[app] version</code>), the <code>directory</code>, the <code>executable</code> (<code>firefox</code>), and the <code>config</code> (<code>application.ini</code>). <code>Runtime::new</code> prefers <code>userdata/runtime/</code>, falling back to <code>sysdata/runtime/</code>.</p>
+
+<table>
+<thead>
+<tr>
+<th> Operation </th>
+<th> What it does </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>install</code> </td>
+<td> Download an official Mozilla build, unpack it, and replace the runtime directory (<code>runtime.rs:237-342</code>) </td>
+</tr>
+<tr>
+<td> <code>link</code> (Linux) </td>
+<td> Symlink the system Firefox into the runtime dir (copy only <code>firefox</code>/<code>firefox-bin</code>), set <code>use_linked_runtime = true</code> (<code>runtime.rs:344-399</code>) </td>
+</tr>
+<tr>
+<td> <code>patch</code> </td>
+<td> Copy <code>sysdata/userchrome/runtime/</code> (autoconfig) into the runtime and fix permissions (<code>runtime.rs:410-496</code>) </td>
+</tr>
+<tr>
+<td> <code>uninstall</code> </td>
+<td> Empty the runtime directory (<code>runtime.rs:401-408</code>) </td>
+</tr>
+<tr>
+<td> <code>run</code> </td>
+<td> Spawn the runtime, optionally under a <code>launcher</code> wrapper (the scheduling prefix) (<code>runtime.rs:498-530</code>) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>version == None</code> means no runtime is installed, and launches bail — the GUI gates its UI on this and offers the install action. See <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a> for the link/patch mechanics.</p>
+
+<h2 id="7-identifiers-ulid-vs-uuid">7. Identifiers: ULID vs UUID</h2>
+
+<p>ffwebapps uses two different identifier types for two different jobs, and the distinction matters:</p>
+
+<table>
+<thead>
+<tr>
+<th> ID </th>
+<th> Type </th>
+<th> Identifies </th>
+<th> Generated </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> App ID </td>
+<td> <code>Ulid</code> </td>
+<td> A <code>Site</code> — the canonical internal handle, profile directory name, and <code>MOZ_APP_REMOTINGNAME</code> suffix </td>
+<td> <code>Ulid::new()</code> at install </td>
+</tr>
+<tr>
+<td> Profile ID </td>
+<td> <code>Ulid</code> </td>
+<td> A <code>Profile</code> — directory name; <code>Ulid::nil()</code> is the Default </td>
+<td> <code>Ulid::new()</code> at create </td>
+</tr>
+<tr>
+<td> <code>webapp_id</code> </td>
+<td> <code>Uuid</code> (v4) </td>
+<td> The Firefox Taskbar-Tabs registry entry, Wayland <code>app_id</code>, and <code>.desktop</code> <code>StartupWMClass</code> </td>
+<td> <code>Uuid::new_v4()</code> at install </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>ULIDs are used everywhere ffwebapps refers to its own objects — they are lexicographically time-ordered, so <code>BTreeMap</code> keys and the on-disk <code>.desktop</code>/icon filenames (<code>FFPWA-&lt;ulid&gt;</code>) sort by creation time. The <code>webapp_id</code> is a separate UUID purely because that is the shape Firefox&rsquo;s Web Apps registry and window <code>app_id</code> expect. An app installed before <code>webapp_id</code> existed gets one lazily back-filled on its next launch.</p>
+
+<h2 id="8-on-disk-layout">8. On-disk layout</h2>
+
+<p>Under <code>~/.local/share/ffwebapps/</code> (the <code>userdata</code> dir):</p>
+
+<pre><code class="language-text code-block">
+config.json                         the serialized Storage
+runtime/                            the Firefox runtime (symlinks when --link)
+profiles/
+  00000000000000000000000000/       the Nil "Default" profile
+    user.js                         per-app prefs (regenerated at launch)
+    chrome/userChrome.css           chromeless titlebar (from patch)
+    taskbartabs/taskbartabs.json    Web Apps registry (scope + start URL)
+    ffwebapps.css / ffwebapps.js     optional per-profile injection
+  01J.../                            a per-app profile (by profile ULID)
+</code></pre>
+
+
+<p>And the desktop-integration files, written outside the ffwebapps data dir into standard XDG locations:</p>
+
+<pre><code class="language-text code-block">
+~/.local/share/applications/FFPWA-&lt;ulid&gt;.desktop      the launcher
+~/.local/share/icons/hicolor/&lt;size&gt;/apps/FFPWA-&lt;ulid&gt;.png   icons
+~/.config/autostart/FFPWA-&lt;ulid&gt;.desktop              only if launch-on-login
+~/.config/kwinrulesrc  [ffwebapps-FFPWA-&lt;ulid&gt;]       only on KDE
+$XDG_RUNTIME_DIR/ffwebapps-&lt;ULID&gt;.sock                 only while running
+</code></pre>
+
+
+<p>These are documented in <a href="desktop-integration.gen.html">Desktop Integration</a>.</p>
+
+<h2 id="9-projectdirs-and-overrides">9. ProjectDirs and overrides</h2>
+
+<p><code>ProjectDirs</code> (<code>directories.rs:30-99</code>) resolves the three roots ffwebapps uses:</p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Default (Linux) </th>
+<th> Holds </th>
+<th> Env override </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>executables</code> </td>
+<td> <code>/usr/bin</code> </td>
+<td> The <code>ffwebapps</code> / <code>ffwebapps-tray</code> binaries </td>
+<td> <code>FFPWA_EXECUTABLES</code> </td>
+</tr>
+<tr>
+<td> <code>sysdata</code> </td>
+<td> <code>/usr/share/ffwebapps</code> </td>
+<td> The <code>userchrome/</code> assets copied into profiles and the runtime </td>
+<td> <code>FFPWA_SYSDATA</code> </td>
+</tr>
+<tr>
+<td> <code>userdata</code> </td>
+<td> <code>~/.local/share/ffwebapps</code> </td>
+<td> <code>config.json</code>, <code>runtime/</code>, <code>profiles/</code> </td>
+<td> <code>FFPWA_USERDATA</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Each path is resolved first from a build-time <code>option_env!</code>, then — unless the build set <code>FFPWA_STATIC_DIRS=1</code> — overridden by the matching run-time environment variable, with a leading <code>~</code> expanded against the home directory (<code>directories.rs:102-214</code>). This is how a development checkout points the binaries at an in-tree <code>userchrome/</code> and a scratch data dir without touching <code>/usr</code>. <code>ProjectDirs::new</code> also <code>create_dir_all</code>s <code>userdata</code> so the data directory always exists.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

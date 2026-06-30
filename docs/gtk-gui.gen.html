@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — GTK Management GUI</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--gtk-management-gui">ffwebapps — GTK Management GUI</h1>
+
+<p>This page documents <code>ffwebapps-gtk</code>: a GTK4 / libadwaita management app that lives in the same crate as the CLI, calls the library in-process, and drives a running app over the same IPC socket the tray uses.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-same-crate-second-binary">Same crate, second binary</a></li>
+<li><a href="#2-off-thread-by-construction">Off-thread by construction</a></li>
+<li><a href="#3-the-window-carousel-and-hand-built-tabs">The window: carousel and hand-built tabs</a></li>
+<li><a href="#4-the-pages">The pages</a></li>
+<li><a href="#5-the-app-editor-and-three-state-edits">The app editor and three-state edits</a></li>
+<li><a href="#6-live-control-over-the-socket">Live control over the socket</a></li>
+<li><a href="#7-appearance-and-the-glass-theme">Appearance and the glass theme</a></li>
+<li><a href="#8-data-flow">Data flow</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-same-crate-second-binary">1. Same crate, second binary</h2>
+
+<p><code>ffwebapps-gtk</code> is a Linux-only binary behind the <code>gui</code> cargo feature, declared in the same <code>firefoxpwa</code> crate as the CLI (<code>Cargo.toml:32-35</code>). That placement is forced by the data model: the core types are <code>#[non_exhaustive]</code> and only constructible <em>in-crate</em>, so a separate program could not build a <code>SiteUpdateCommand</code> or a <code>SiteConfig</code> at all. By living in the same crate, the GUI reuses the CLI&rsquo;s exact code paths — manifest fetching, system integration, storage writes — rather than shelling out or parsing CLI text.</p>
+
+<p><code>main.rs</code> is a 43-line bootstrap: it sets the reverse-DNS app id <code>io.github.nine7nine.ffwebapps</code>, routes the <code>log</code> crate (which the library commands log through) into <code>~/.local/share/ffwebapps/ffwebapps-gui.log</code> via <code>simplelog::WriteLogger</code>, builds an <code>adw::Application</code>, and wires <code>ui::window::build</code> as the <code>activate</code> handler. The <code>gui</code> feature pulls in four optional deps: <code>gtk4</code>, <code>libadwaita</code>, <code>async-channel</code>, and <code>sourceview5</code>.</p>
+
+<p>The module layout mirrors the responsibilities:</p>
+
+<table>
+<thead>
+<tr>
+<th> Module </th>
+<th> Responsibility </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>main.rs</code> </td>
+<td> Bootstrap: app id, logger, <code>adw::Application</code> </td>
+</tr>
+<tr>
+<td> <code>core.rs</code> </td>
+<td> The off-thread wrapper layer over the library, plus field-diff helpers and appearance persistence </td>
+</tr>
+<tr>
+<td> <code>ipc.rs</code> </td>
+<td> Async Unix-socket client for a running app&rsquo;s runtime socket </td>
+</tr>
+<tr>
+<td> <code>ui/window.rs</code> </td>
+<td> Main window, carousel + tab switcher, app list, live-running poll </td>
+</tr>
+<tr>
+<td> <code>ui/widgets.rs</code> </td>
+<td> The glass CSS, dark-mode forcing, live appearance provider </td>
+</tr>
+<tr>
+<td> <code>ui/*_page.rs</code>, <code>ui/*_dialog.rs</code> </td>
+<td> The individual pages and dialogs </td>
+</tr>
+</tbody>
+</table>
+
+
+<h2 id="2-off-thread-by-construction">2. Off-thread by construction</h2>
+
+<p>The cardinal rule of a GTK app is that the main loop must never block — and the library&rsquo;s install/update/launch paths do blocking network I/O and spawn processes. The GUI funnels every such call through one primitive (<code>core::spawn</code>, <code>core.rs:103-118</code>):</p>
+
+<pre><code class="language-rust code-block">
+pub fn spawn&lt;T, W, D&gt;(work: W, on_done: D)
+where W: FnOnce() -&gt; Result&lt;T&gt; + Send + 'static,
+      D: FnOnce(Result&lt;T&gt;) + 'static {
+    let (tx, rx) = async_channel::bounded(1);
+    gio::spawn_blocking(move || { let _ = tx.send_blocking(work()); });
+    glib::spawn_future_local(async move { on_done(rx.recv().await.unwrap()); });
+}
+</code></pre>
+
+
+<p><code>work</code> runs on a <code>gio::spawn_blocking</code> worker thread; its <code>Result</code> is marshalled back over an <code>async-channel</code> and delivered to <code>on_done</code> on the GTK main loop. Every mutating wrapper in <code>core.rs</code> follows this shape:</p>
+
+<table>
+<thead>
+<tr>
+<th> Wrapper </th>
+<th> Library call </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>install_site</code> </td>
+<td> optionally <code>ProfileCreateCommand._run()</code>, then <code>SiteInstallCommand._run()</code> → new <code>Ulid</code> </td>
+</tr>
+<tr>
+<td> <code>save_site</code> </td>
+<td> <code>SiteUpdateCommand.run()</code>, then a direct <code>Storage</code> edit for the two fields the command can&rsquo;t express </td>
+</tr>
+<tr>
+<td> <code>launch_site</code> / <code>uninstall_site</code> </td>
+<td> <code>SiteLaunchCommand.run()</code> / <code>SiteUninstallCommand{ quiet: true }.run()</code> </td>
+</tr>
+<tr>
+<td> <code>create_profile</code> / <code>update_profile</code> / <code>remove_profile</code> </td>
+<td> the <code>Profile*Command</code>s </td>
+</tr>
+<tr>
+<td> <code>install_runtime</code> / <code>patch_runtime</code> / <code>uninstall_runtime</code> </td>
+<td> the <code>Runtime*Command</code>s </td>
+</tr>
+<tr>
+<td> <code>save_config</code> </td>
+<td> no command exists — direct <code>Storage::load</code> → mutate <code>Config</code> → <code>storage.write</code> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p><code>save_site</code> is a good example of mixing the two paths: it runs <code>SiteUpdateCommand</code> for everything the command covers, then does a <em>direct</em> <code>Storage</code> edit for <code>external_links</code> and <code>allowed_domains</code> (the two <code>SiteConfig</code> fields with no CLI flag) — deliberately <em>after</em> the command, so the command&rsquo;s own write doesn&rsquo;t clobber them.</p>
+
+<h2 id="3-the-window-carousel-and-hand-built-tabs">3. The window: carousel and hand-built tabs</h2>
+
+<p>The window is an <code>AdwApplicationWindow</code> → <code>AdwToolbarView</code> with a static <code>AdwHeaderBar</code> on top and, below it, a hand-built tab bar over an <code>adw::Carousel</code> of four pages: <strong>Apps</strong>, <strong>Profiles</strong>, <strong>Runtime</strong>, <strong>Settings</strong> (<code>window.rs</code>). The carousel gives real swipeable pages (commit <code>3c9b671</code>).</p>
+
+<p>There is a wrinkle worth recording: <code>AdwViewSwitcher</code> can only drive an <code>AdwViewStack</code>, never a carousel. So the tab bar is built by hand — a centred row of four <code>gtk::ToggleButton</code>s chained into one radio group — and kept in sync with the carousel through a re-entrancy guard (<code>Rc&lt;Cell&lt;bool&gt;&gt;</code>): a button toggle scrolls the carousel, a carousel page-change sets the matching button active, and the guard stops the two from echoing each other. The carousel claims only the horizontal axis so each page&rsquo;s list still scrolls vertically.</p>
+
+<p>The <strong>Apps</strong> page lists one <code>AdwPreferencesGroup</code> per profile, each with an activatable row per site carrying a 32px icon, a &ldquo;● running&rdquo; indicator, and a chevron. A 2-second <code>glib::timeout</code> poll calls <code>ipc::is_running(id)</code> (a cheap socket-connect probe) to light each row&rsquo;s running dot. Activating a row opens the app editor; a separate &ldquo;Install web app&rdquo; row opens the install dialog.</p>
+
+<h2 id="4-the-pages">4. The pages</h2>
+
+<table>
+<thead>
+<tr>
+<th> Page / dialog </th>
+<th> What it does </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Install dialog</strong> </td>
+<td> Manifest URL + optional document URL / name, a profile combo whose last entry is &ldquo;New profile…&rdquo;, and option switches. Calls <code>core::install_site</code> </td>
+</tr>
+<tr>
+<td> <strong>App editor</strong> </td>
+<td> A grouped <code>AdwDialog</code> over <code>SiteConfig</code> (see §5) with Launch / Uninstall / Save in its header and a live-control group </td>
+</tr>
+<tr>
+<td> <strong>Profiles page</strong> </td>
+<td> Create / edit / remove profiles, each row offering CSS/JS injection. The Nil &ldquo;Default&rdquo; shows &ldquo;Clear&rdquo;, not &ldquo;Remove&rdquo; </td>
+</tr>
+<tr>
+<td> <strong>Injection editor</strong> </td>
+<td> A GtkSourceView 5 editor for the per-<strong>profile</strong> <code>ffwebapps.css</code> / <code>ffwebapps.js</code>, with a banner noting it&rsquo;s shared by every app in the profile and applies on next launch </td>
+</tr>
+<tr>
+<td> <strong>Runtime page</strong> </td>
+<td> Install / use-system-Firefox / patch / uninstall, with the detected version. Actions are body rows (not header buttons) so the window CSD stays static </td>
+</tr>
+<tr>
+<td> <strong>Settings page</strong> </td>
+<td> Appearance (see §7), the global <code>Config</code> toggles, and the extra runtime arguments / environment variables </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The injection editor is explicitly per-profile, matching the runtime: the <code>ffwebapps.css</code> / <code>ffwebapps.js</code> files live at the profile root and are injected into every app that shares the profile (see <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a>). It uses a dark GtkSourceView style scheme picked from the first available of <code>Adwaita-dark</code> / <code>oblivion</code> / <code>classic-dark</code> / <code>solarized-dark</code>.</p>
+
+<h2 id="5-the-app-editor-and-three-state-edits">5. The app editor and three-state edits</h2>
+
+<p>The app editor is an <code>AdwDialog</code> of grouped sections — Live control, General, Behaviour, Performance, Advanced, and &ldquo;Update on save&rdquo; — each mapping to <code>SiteConfig</code> fields. Save gathers a <code>SiteEdits</code> struct and runs <code>core::save_site</code> off-thread, disabling Save and Launch while in flight and toasting the result.</p>
+
+<p>The interesting part is that the editor faithfully reproduces the CLI&rsquo;s three-state update semantics (see <a href="cli.gen.html">CLI &amp; Command Model</a>) in plain Rust. <code>opt_opt_string</code> (<code>core.rs:228-236</code>) diffs each widget&rsquo;s current text against the <em>original</em> config value:</p>
+
+<table>
+<thead>
+<tr>
+<th> Original </th>
+<th> Current widget text </th>
+<th> Result </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> none </td>
+<td> empty </td>
+<td> <code>None</code> — leave (was empty, still empty) </td>
+</tr>
+<tr>
+<td> <code>Some(x)</code> </td>
+<td> <code>x</code> </td>
+<td> <code>None</code> — leave (unchanged) </td>
+</tr>
+<tr>
+<td> any </td>
+<td> empty </td>
+<td> <code>Some(None)</code> — clear to manifest default </td>
+</tr>
+<tr>
+<td> any </td>
+<td> <code>y</code> </td>
+<td> <code>Some(Some(y))</code> — set </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>That distinction — &ldquo;the field was already empty, don&rsquo;t touch it&rdquo; versus &ldquo;the user emptied a previously-set field, so actively clear it&rdquo; — is what lets the GUI send a minimal, correct update instead of blindly overwriting every field. Vec overrides (categories/keywords) use the empty-element reset convention; <code>external_links</code> (an <code>Option&lt;bool&gt;</code> where unset means on) preserves &ldquo;unset&rdquo; rather than hard-coding <code>true</code>.</p>
+
+<h2 id="6-live-control-over-the-socket">6. Live control over the socket</h2>
+
+<p>When the app editor opens, it connects to the app&rsquo;s runtime socket and turns its Live-control group into a remote — the same protocol the tray speaks (<code>ipc.rs</code>, <code>live_control.rs</code>). The GUI identifies as <code>hello v1 launcher</code> (not <code>tray</code>), so it can monitor and send verbs <em>without</em> affecting close-to-tray behaviour.</p>
+
+<p>The socket reader runs on a <code>std::thread</code> (a <code>BufReader::lines()</code> loop) that pushes <code>LiveEvent</code>s — <code>Hello(pid)</code>, <code>Unread(n)</code>, <code>State(flags)</code>, <code>Disconnected</code> — into an <code>async-channel</code>; a <code>glib::spawn_future_local</code> drains them onto the main loop and updates the controls. The ten controls (Show/Hide, Reload, Quit, Copy URL, Open in browser, and the Mute / DND / Suspend / Start-on-login switches) start disabled and enable only once the connection succeeds. An echo guard (<code>Rc&lt;Cell&lt;bool&gt;&gt; applying</code>) suppresses the verb that an inbound <code>state</code> update would otherwise bounce back when it calls <code>set_active</code> on the switches. Closing the dialog calls <code>LiveConn::close()</code>, which shuts the stream down and ends the reader thread.</p>
+
+<h2 id="7-appearance-and-the-glass-theme">7. Appearance and the glass theme</h2>
+
+<p>The GUI forces dark mode (<code>adw::ColorScheme::ForceDark</code>) and installs a &ldquo;glass&rdquo; stylesheet adapted from the Poxicle configurator (commit <code>451ee43</code>). The mechanism: the <code>window</code> gets one translucent tint (<code>rgba(20,20,26,0.92)</code>) and every container stacked on it (<code>box</code>, <code>list</code>, <code>row</code>, <code>headerbar</code>, …) is forced transparent so the tint shows through uniformly.</p>
+
+<p>A second CSS provider at <code>USER</code> priority (above the static <code>APPLICATION</code> sheet) lets the user retune the look live (commit <code>50fc393</code>): an <code>Appearance { opacity, glass, accent }</code> model, persisted separately at <code>~/.local/share/ffwebapps/gui-appearance.json</code>, redefines <code>@accent_bg_color</code> / <code>@accent_color</code> and the window tint, so every static rule that references the accent re-resolves for free. The settings page wires an opacity spin row and two <code>ColorDialogButton</code>s to apply changes both live and to disk.</p>
+
+<p>Several small theming fixes are recorded in the history and worth noting as cautionary detail: the switch knob is forced white because styling it with the accent made it invisible on the on-state track (<code>e306ea7</code>); dialogs get an opaque surface so they read as a distinct sheet over the dimmed backdrop (<code>104ee6b</code>); and the accent is applied only to a section&rsquo;s <em>title</em> label, not every row header (<code>a060526</code> / <code>0347f0a</code>).</p>
+
+<h2 id="8-data-flow">8. Data flow</h2>
+
+<p>Storage is the single source of truth, and every page follows the same one-directional cycle:</p>
+
+<pre><code class="language-text code-block">
+Storage::load ─▶ populate Adwaita widgets ─▶ user edits
+      ▲                                          │
+      │                                          ▼
+   refresh_list ◀── on_done: toast + refresh ── core::spawn(work)
+                                                   │ runs .run()/._run()
+                                                   │ or Storage::write
+                                                   ▼ on a worker thread
+</code></pre>
+
+
+<p>The only genuinely live, non-Storage channel is the IPC socket, which streams runtime state into the editor&rsquo;s Live-control group and feeds the per-row &ldquo;● running&rdquo; dots. Everything else is: load from <code>config.json</code>, edit widgets, gather into a plain struct, run a library command off-thread, toast the result, and reload the list.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

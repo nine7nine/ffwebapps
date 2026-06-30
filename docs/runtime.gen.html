@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — The Firefox Runtime & Autoconfig</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--the-firefox-runtime--autoconfig">ffwebapps — The Firefox Runtime &amp; Autoconfig</h1>
+
+<p>This page documents the running app itself: how ffwebapps drives Firefox&rsquo;s first-party Web Apps feature, and the privileged <code>_autoconfig.cfg</code> JavaScript that turns a plain Firefox into a chromeless, socket-served, link-routing web-app runtime.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-web-apps-not-chrome-patching">Web Apps, not chrome patching</a></li>
+<li><a href="#2-how-a-runtime-is-assembled">How a runtime is assembled</a></li>
+<li><a href="#3-the-autoconfig-loader-chain">The autoconfig loader chain</a></li>
+<li><a href="#4-the-taskbartabs-registry">The taskbartabs registry</a></li>
+<li><a href="#5-profile-prefs-userjs">Profile prefs: user.js</a></li>
+<li><a href="#6-the-chromeless-titlebar">The chromeless titlebar</a></li>
+<li><a href="#7-what-_autoconfigcfg-does">What _autoconfig.cfg does</a></li>
+<li><a href="#8-per-app-css-and-js-injection">Per-app CSS and JS injection</a></li>
+<li><a href="#9-why-this-is-robust">Why this is robust</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-web-apps-not-chrome-patching">1. Web Apps, not chrome patching</h2>
+
+<p>Firefox ≥ 151 ships a first-party <strong>Web Apps (Taskbar Tabs)</strong> feature. Launch it with <code>firefox -taskbar-tab &lt;id&gt;</code> and Firefox opens a standalone, minimal-UI window whose Wayland <code>app_id</code> is <code>org.mozilla.firefox.webapp-&lt;id&gt;</code> — a window the desktop treats as its own application. ffwebapps' entire approach is to <em>enable and configure</em> that feature rather than replace Firefox&rsquo;s UI.</p>
+
+<p>The contrast with the usual site-specific-browser approach is the whole point. Instead of overwriting <code>browser.xhtml</code> and re-applying that patch against every Firefox release, ffwebapps uses three supported extension points, each owned by a different file:</p>
+
+<table>
+<thead>
+<tr>
+<th> Mechanism </th>
+<th> File </th>
+<th> Responsibility </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Autoconfig</strong> (enterprise policy JS) </td>
+<td> <code>_autoconfig.cfg</code> </td>
+<td> Enable the feature; serve the tray socket; own hide/show; route links; inject CSS/JS </td>
+</tr>
+<tr>
+<td> <strong>Profile <code>user.js</code></strong> </td>
+<td> <code>&lt;profile&gt;/user.js</code> </td>
+<td> Per-app prefs: link allow-list, performance knobs, UA override </td>
+</tr>
+<tr>
+<td> <strong><code>userChrome.css</code></strong> </td>
+<td> <code>&lt;profile&gt;/chrome/userChrome.css</code> </td>
+<td> Strip the last toolbar pixels for a chromeless titlebar </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Nothing here is a private API or a binary patch. Autoconfig is the mechanism enterprises use to lock down Firefox; <code>user.js</code> and <code>userChrome.css</code> are documented customization hooks.</p>
+
+<h2 id="2-how-a-runtime-is-assembled">2. How a runtime is assembled</h2>
+
+<p>The &ldquo;runtime&rdquo; is a Firefox install that ffwebapps owns under <code>~/.local/share/ffwebapps/runtime/</code>. On Linux the preferred mode is <code>--link</code>, which avoids a second copy of Firefox entirely (<code>Runtime::link</code>, <code>runtime.rs:344-399</code>):</p>
+
+<ul>
+<li><code>defaults/</code> → a <code>defaults/pref/</code> directory is created and <code>channel-prefs.js</code> is symlinked.</li>
+<li><code>firefox</code> and <code>firefox-bin</code> → <strong>copied</strong> as real files (a symlinked main binary misbehaves).</li>
+<li>everything else under <code>/usr/lib/firefox/</code> → <strong>symlinked</strong> into the runtime directory.</li>
+</ul>
+
+
+<p>The result is a Firefox that tracks the system package&rsquo;s updates but lives in ffwebapps' directory, where it can carry the autoconfig. The alternative, <code>runtime install</code> without <code>--link</code>, downloads an official Mozilla build and unpacks it instead. <code>Config::use_linked_runtime</code> records which mode is active.</p>
+
+<p><code>Runtime::patch</code> (<code>runtime.rs:410-496</code>) copies <code>sysdata/userchrome/runtime/</code> into the runtime directory and (on Linux) chmods the files to <code>0o644</code>. That copied payload is what makes the Firefox an ffwebapps runtime: the autoconfig loader and the autoconfig itself.</p>
+
+<div class="diagram-container">
+<svg width="100%" viewBox="0 0 920 470" xmlns="http://www.w3.org/2000/svg" class="diagram-svg" preserveAspectRatio="xMidYMid meet">
+  <style>
+    .bg     { fill: #1a1b26; }
+    .src    { fill: #16242b; stroke: #7dcfff; stroke-width: 1.5; }
+    .rt     { fill: #1a2235; stroke: #7aa2f7; stroke-width: 1.5; }
+    .prof   { fill: #1a2a1a; stroke: #9ece6a; stroke-width: 1.5; }
+    .box    { fill: #24283b; stroke: #3b4261; stroke-width: 1; }
+    .hot    { fill: #2a2438; stroke: #e0af68; stroke-width: 1.5; }
+    .lbl    { fill: #c0caf5; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-sm { fill: #c0caf5; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+    .lbl-mut{ fill: #a9b1d6; font-size: 9px;  font-family: 'JetBrains Mono', monospace; }
+    .lbl-cy { fill: #7dcfff; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-blu{ fill: #7aa2f7; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-grn{ fill: #9ece6a; font-size: 11px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .lbl-yel{ fill: #e0af68; font-size: 10px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+    .ln     { stroke: #7dcfff; stroke-width: 1.5; fill: none; }
+    .title  { fill: #7aa2f7; font-size: 14px; font-weight: bold; font-family: 'JetBrains Mono', monospace; }
+  </style>
+  <rect x="0" y="0" width="920" height="470" class="bg" rx="6"/>
+  <text x="460" y="26" text-anchor="middle" class="title">runtime patch: how config reaches Firefox</text>
+
+  <!-- source -->
+  <rect x="20" y="48" width="270" height="150" class="src" rx="6"/>
+  <text x="36" y="68" class="lbl-cy">sysdata/userchrome/runtime/</text>
+  <rect x="36" y="80" width="238" height="34" class="box" rx="6"/>
+  <text x="155" y="95" text-anchor="middle" class="lbl-sm">defaults/pref/autoconfig.js</text>
+  <text x="155" y="108" text-anchor="middle" class="lbl-mut">points Firefox at _autoconfig.cfg</text>
+  <rect x="36" y="122" width="238" height="34" class="hot" rx="6"/>
+  <text x="155" y="137" text-anchor="middle" class="lbl-yel">_autoconfig.cfg</text>
+  <text x="155" y="150" text-anchor="middle" class="lbl-mut">the privileged runtime JS</text>
+  <rect x="36" y="164" width="238" height="26" class="box" rx="6"/>
+  <text x="155" y="181" text-anchor="middle" class="lbl-mut">(profile/chrome/userChrome.css)</text>
+
+  <!-- runtime -->
+  <rect x="330" y="48" width="270" height="150" class="rt" rx="6"/>
+  <text x="346" y="68" class="lbl-blu">userdata/runtime/  (Firefox)</text>
+  <rect x="346" y="82" width="238" height="30" class="box" rx="6"/>
+  <text x="465" y="101" text-anchor="middle" class="lbl-sm">firefox / firefox-bin  (copied)</text>
+  <rect x="346" y="118" width="238" height="30" class="box" rx="6"/>
+  <text x="465" y="137" text-anchor="middle" class="lbl-mut">everything else → symlinked /usr/lib/firefox</text>
+  <rect x="346" y="154" width="238" height="34" class="hot" rx="6"/>
+  <text x="465" y="169" text-anchor="middle" class="lbl-yel">+ autoconfig.js + _autoconfig.cfg</text>
+  <text x="465" y="182" text-anchor="middle" class="lbl-mut">copied in by Runtime::patch</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="290" y1="139" x2="330" y2="139" class="ln"/>
+  <text x="296" y="132" class="lbl-mut">patch</text>
+
+  <!-- profile -->
+  <rect x="640" y="48" width="260" height="150" class="prof" rx="6"/>
+  <text x="656" y="68" class="lbl-grn">userdata/profiles/&lt;ulid&gt;/</text>
+  <rect x="656" y="82" width="228" height="28" class="box" rx="6"/>
+  <text x="770" y="100" text-anchor="middle" class="lbl-sm">user.js  (write_profile_prefs)</text>
+  <rect x="656" y="116" width="228" height="28" class="box" rx="6"/>
+  <text x="770" y="134" text-anchor="middle" class="lbl-sm">chrome/userChrome.css</text>
+  <rect x="656" y="150" width="228" height="38" class="box" rx="6"/>
+  <text x="770" y="166" text-anchor="middle" class="lbl-sm">taskbartabs/taskbartabs.json</text>
+  <text x="770" y="180" text-anchor="middle" class="lbl-mut">scope + start URL (sync_registry)</text>
+
+  <!-- launch -->
+  <rect x="20" y="238" width="880" height="62" class="hot" rx="6"/>
+  <text x="460" y="258" text-anchor="middle" class="lbl-yel">firefox -profile &lt;profile&gt; -taskbar-tab &lt;webapp_id&gt;</text>
+  <text x="460" y="273" text-anchor="middle" class="lbl-yel">-new-window &lt;start_url&gt; -container 0</text>
+  <text x="460" y="290" text-anchor="middle" class="lbl-mut">env MOZ_APP_REMOTINGNAME=ffwebapps-&lt;ulid&gt;  =  single instance</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="465" y1="198" x2="465" y2="238" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="770" y1="198" x2="770" y2="218" class="ln"/>
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="770" y1="218" x2="465" y2="218" class="ln"/>
+
+  <!-- running window -->
+  <rect x="20" y="312" width="880" height="138" class="rt" rx="6"/>
+  <text x="460" y="332" text-anchor="middle" class="lbl-blu">the running Web App window  (Firefox loads _autoconfig.cfg at startup)</text>
+  <rect x="40"  y="346" width="200" height="90" class="box" rx="6"/>
+  <text x="140" y="364" text-anchor="middle" class="lbl-sm">socket server</text>
+  <text x="140" y="380" text-anchor="middle" class="lbl-mut">nsIServerSocket on</text>
+  <text x="140" y="392" text-anchor="middle" class="lbl-mut">ffwebapps-&lt;ULID&gt;.sock</text>
+  <text x="140" y="410" text-anchor="middle" class="lbl-mut">hide/show, close-to-tray,</text>
+  <text x="140" y="422" text-anchor="middle" class="lbl-mut">unread, quit</text>
+  <rect x="256" y="346" width="200" height="90" class="box" rx="6"/>
+  <text x="356" y="364" text-anchor="middle" class="lbl-sm">link router</text>
+  <text x="356" y="380" text-anchor="middle" class="lbl-mut">content frame script +</text>
+  <text x="356" y="392" text-anchor="middle" class="lbl-mut">http-on-modify-request</text>
+  <text x="356" y="410" text-anchor="middle" class="lbl-mut">out-of-scope → xdg-open</text>
+  <rect x="472" y="346" width="200" height="90" class="box" rx="6"/>
+  <text x="572" y="364" text-anchor="middle" class="lbl-sm">injector</text>
+  <text x="572" y="380" text-anchor="middle" class="lbl-mut">ffwebapps.css → USER_SHEET</text>
+  <text x="572" y="392" text-anchor="middle" class="lbl-mut">ffwebapps.js → sandbox</text>
+  <text x="572" y="410" text-anchor="middle" class="lbl-mut">at DOMContentLoaded</text>
+  <rect x="688" y="346" width="192" height="90" class="box" rx="6"/>
+  <text x="784" y="364" text-anchor="middle" class="lbl-sm">prefs in effect</text>
+  <text x="784" y="380" text-anchor="middle" class="lbl-mut">taskbarTabs.enabled</text>
+  <text x="784" y="392" text-anchor="middle" class="lbl-mut">cookieBehavior=0</text>
+  <text x="784" y="410" text-anchor="middle" class="lbl-mut">processCount caps</text>
+
+  <line stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" x1="465" y1="300" x2="465" y2="312" class="ln"/>
+</svg>
+</div>
+
+
+<h2 id="3-the-autoconfig-loader-chain">3. The autoconfig loader chain</h2>
+
+<p>Firefox&rsquo;s autoconfig is a two-file handshake. The small <code>autoconfig.js</code> is a normal pref file that lives in <code>defaults/pref/</code> and tells Firefox which autoconfig to load and how to read it:</p>
+
+<pre><code class="language-javascript code-block">
+pref('general.config.filename', '_autoconfig.cfg');
+pref('general.config.obscure_value', 0);
+pref('general.config.sandbox_enabled', false);
+</code></pre>
+
+
+<p><code>obscure_value = 0</code> means the cfg is read as plain text (autoconfig historically byte-rotated the file), and <code>sandbox_enabled = false</code> grants it full chrome privileges — it runs with access to <code>Components</code>, <code>Services</code>, the window manager, sockets, and processes. That is exactly the power ffwebapps needs and the reason all of the runtime&rsquo;s behaviour can live in one JS file.</p>
+
+<p>The cfg opens with a set of <code>defaultPref</code> calls that establish the runtime baseline (<code>_autoconfig.cfg:7-30</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Pref </th>
+<th> Value </th>
+<th> Why </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>browser.taskbarTabs.enabled</code> </td>
+<td> <code>true</code> </td>
+<td> Enables the Web Apps feature itself </td>
+</tr>
+<tr>
+<td> <code>toolkit.legacyUserProfileCustomizations.stylesheets</code> </td>
+<td> <code>true</code> </td>
+<td> Lets the profile&rsquo;s <code>userChrome.css</code> load </td>
+</tr>
+<tr>
+<td> <code>media.hardware-video-decoding.enabled</code> </td>
+<td> <code>true</code> </td>
+<td> Reaffirm GPU video decode per app </td>
+</tr>
+<tr>
+<td> <code>media.ffvpx-hw.enabled</code> </td>
+<td> <code>true</code> </td>
+<td> Hardware ffvpx path </td>
+</tr>
+<tr>
+<td> <code>network.cookie.cookieBehavior</code> </td>
+<td> <code>0</code> </td>
+<td> <strong>Disables Total Cookie Protection</strong> so M365/SSO silent re-auth via hidden cross-origin iframes works </td>
+</tr>
+<tr>
+<td> <code>dom.ipc.processCount</code> </td>
+<td> <code>4</code> </td>
+<td> Cap content processes — a single-site app doesn&rsquo;t need general-browsing counts </td>
+</tr>
+<tr>
+<td> <code>dom.ipc.processCount.webIsolated</code> </td>
+<td> <code>1</code> </td>
+<td> Cap isolated cross-origin process pool </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The <code>cookieBehavior = 0</code> line is a deliberate trade-off documented in the source: an app profile is single-app, not general browsing, and partitioning third-party cookies breaks the silent token renewal that Microsoft 365 and many SSO providers do through a hidden iframe (the &ldquo;Sign in does nothing&rdquo; symptom).</p>
+
+<h2 id="4-the-taskbartabs-registry">4. The taskbartabs registry</h2>
+
+<p>For <code>-taskbar-tab &lt;id&gt;</code> to resolve, the ID must be registered in the profile&rsquo;s <code>taskbartabs/taskbartabs.json</code>, whose shape is validated by Firefox against its own <code>TaskbarTabs.1.schema.json</code> on every load. <code>taskbartabs::sync_registry</code> (<code>taskbartabs.rs:74-110</code>) writes one entry per app:</p>
+
+<pre><code class="language-json code-block">
+{
+  "version": 1,
+  "taskbarTabs": [
+    {
+      "id": "&lt;webapp_id UUID&gt;",
+      "scopes": [{ "hostname": "teams.microsoft.com", "prefix": "/v2" }],
+      "userContextId": 0,
+      "startUrl": "https://teams.microsoft.com/v2/",
+      "name": "Microsoft Teams"
+    }
+  ]
+}
+</code></pre>
+
+
+<p>The scope is derived from the manifest (<code>scope_from_site</code>, <code>taskbartabs.rs:59-70</code>): the hostname is the site&rsquo;s domain, and the optional path prefix comes from the manifest <code>scope</code> path (dropped when it is just <code>/</code>). Entries are upserted by <code>id</code>, and the registry tolerates a missing or corrupt file by falling back to a fresh one. This file is rewritten on every launch, so config changes always reach Firefox.</p>
+
+<h2 id="5-profile-prefs-userjs">5. Profile prefs: user.js</h2>
+
+<p><code>taskbartabs::write_profile_prefs</code> (<code>taskbartabs.rs:178-233</code>) regenerates the profile&rsquo;s <code>user.js</code> at launch. It is owned by ffwebapps — the header literally says <em>&ldquo;Managed by ffwebapps — do not edit&rdquo;</em> — and carries the per-app behaviour the autoconfig reads back at runtime:</p>
+
+<ul>
+<li><code>ffwebapps.externalLinks.enabled</code> — from <code>SiteConfig::external_links</code> (<code>unwrap_or(true)</code>).</li>
+<li><code>ffwebapps.allowedDomains</code> — the comma-joined in-app allow-list, either the user&rsquo;s list or a scope-derived default (see <a href="link-routing.gen.html">Link Routing &amp; Scope</a>).</li>
+<li><strong>Software rendering</strong> (when <code>software_rendering</code> is set): forces <code>gfx.webrender.software</code>, disables <code>layers.acceleration</code>, and turns off every hardware video-decode path. This branch <em>takes precedence over</em> <code>hardware_webrtc</code>.</li>
+<li><strong>Hardware WebRTC</strong> (when <code>hardware_webrtc</code> is set and software rendering is not): forces decode past Firefox&rsquo;s GPU blocklist and enables the hardware VP8 path used by WhatsApp/Meet.</li>
+<li><strong>User-Agent override</strong> (when <code>user_agent</code> is non-empty): writes <code>general.useragent.override</code>, with quotes and backslashes escaped.</li>
+</ul>
+
+
+<p>Because these are written fresh on each launch and read once at startup, a config change &ldquo;applies on next relaunch&rdquo; — there is no live pref-watching. See <a href="performance.gen.html">Performance Tuning</a> for the rendering and scheduling knobs.</p>
+
+<h2 id="6-the-chromeless-titlebar">6. The chromeless titlebar</h2>
+
+<p>A taskbar-tab window is already minimal-UI: a slim toolbar with a read-only address pill plus navigation and extension buttons. <code>userChrome.css</code> removes the rest while keeping one thing Firefox can&rsquo;t replace. The core rule hides the whole customizable toolbar area except the window controls and the URL container:</p>
+
+<pre><code class="language-css code-block">
+:root[taskbartab] #nav-bar-customization-target &gt; *:not(.titlebar-buttonbox-container):not(#urlbar-container) {
+  display: none !important;
+}
+</code></pre>
+
+
+<p>The stylesheet then recolours the chrome dark (the manifest&rsquo;s light <code>theme_color</code> clashes with dark app UIs), removes Firefox&rsquo;s 40px titlebar spacers (the normal rule that strips them is inert when tabs are hidden), and — importantly — <strong>keeps the site-identity / permission cluster</strong>. Hiding the entire urlbar removed the anchor that camera/mic/geolocation prompts drop down from, so they never appeared and grants could never be made. The fix collapses the urlbar to just <code>#identity-box</code> (which contains the permission anchors and the notification-popup box) and strips the address pill, the page-action buttons, and the &ldquo;remove tab from taskbar&rdquo; button — leaving a single clickable lock icon, like a Chromium installed-app window.</p>
+
+<h2 id="7-what-_autoconfigcfg-does">7. What _autoconfig.cfg does</h2>
+
+<p>Past the prefs, the bulk of <code>_autoconfig.cfg</code> is runtime behaviour. It is organized into independent <code>try</code> blocks so a failure in one never disables the others:</p>
+
+<table>
+<thead>
+<tr>
+<th> Block </th>
+<th> Lines </th>
+<th> Responsibility </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> External-link backstop </td>
+<td> <code>145-210</code> </td>
+<td> A <code>http-on-modify-request</code> observer that cancels out-of-scope top-level loads and hands them to the default browser </td>
+</tr>
+<tr>
+<td> Content-side router </td>
+<td> <code>217-297</code> </td>
+<td> A frame script that intercepts <code>target="_blank"</code> / middle-click / ctrl-click at the source and routes out-of-scope links before Firefox opens a window </td>
+</tr>
+<tr>
+<td> CSS/JS injection </td>
+<td> <code>299-372</code> </td>
+<td> Reads <code>ffwebapps.css</code> / <code>ffwebapps.js</code> from the profile and injects them userscript-style </td>
+</tr>
+<tr>
+<td> Tray IPC + window control </td>
+<td> <code>377-956</code> </td>
+<td> Serves the Unix socket, owns hide/show, close-to-tray, the unread badge, and the persisted toggles </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The link-routing blocks are covered in <a href="link-routing.gen.html">Link Routing &amp; Scope</a>; the socket server, the runtime-owned window, and the KWin hide/show mechanism are covered in <a href="ipc-protocol.gen.html">IPC &amp; the Runtime-Owned Window</a>. The unifying idea is that <strong>the runtime decides everything about its own window</strong> — there is no external script reaching in to move or close it.</p>
+
+<p>One small shared object, <code>_ffwaShared</code>, is exported from the link block (<code>_autoconfig.cfg:34</code>, <code>141</code>) and reused by the socket block so the tray&rsquo;s &ldquo;Open page in browser&rdquo; command and the link router invoke the <em>same</em> <code>xdg-open</code>-based external opener.</p>
+
+<h2 id="8-per-app-css-and-js-injection">8. Per-app CSS and JS injection</h2>
+
+<p>For Ferdium/WebCatalog-style customization, the runtime injects user files if they exist in the profile (<code>_autoconfig.cfg:299-372</code>):</p>
+
+<ul>
+<li><code>ffwebapps.css</code> is loaded as a <strong><code>USER_SHEET</code></strong> via <code>windowUtils.loadSheetUsingURIString</code> — it is CSP-immune and needs no DOM mutation.</li>
+<li><code>ffwebapps.js</code> runs in a <strong>content-principal sandbox</strong> (<code>Cu.Sandbox</code> + <code>evalInSandbox</code>) at <code>DOMContentLoaded</code> — userscript-style, also not subject to the page&rsquo;s CSP.</li>
+</ul>
+
+
+<p>The files are read once at startup and baked into a frame script (the contents are JSON-encoded into the script source), so editing them requires an app restart. Crucially this is <strong>per-profile</strong>, not per-app: the files live at the profile root, so every app sharing a profile shares the injection. The GTK GUI surfaces this under the profile with a banner saying as much (see <a href="gtk-gui.gen.html">GTK Management GUI</a>).</p>
+
+<h2 id="9-why-this-is-robust">9. Why this is robust</h2>
+
+<p>The design&rsquo;s durability comes from leaning on maintained Mozilla code and from a few defensive habits in the cfg:</p>
+
+<ul>
+<li><strong>No chrome patch to maintain.</strong> The chromeless look is CSS against documented <code>:root[taskbartab]</code> selectors; the behaviour is autoconfig JS. A Firefox update doesn&rsquo;t invalidate a binary patch because there isn&rsquo;t one.</li>
+<li><strong>Independent <code>try</code> blocks.</strong> Link routing, injection, and the socket server each fail closed without taking the others down.</li>
+<li><strong>Config is regenerated at launch.</strong> <code>taskbartabs.json</code> and <code>user.js</code> are rewritten every launch from <code>config.json</code>, so they cannot drift out of sync with the stored <code>Site</code>.</li>
+<li><strong>The runtime is replaceable.</strong> With <code>--link</code> the runtime is mostly symlinks to system Firefox; uninstalling and re-linking is cheap and tracks the distro&rsquo;s Firefox updates.</li>
+</ul>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>

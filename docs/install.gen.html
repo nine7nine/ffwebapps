@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ffwebapps — Build, Install & Packaging</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ffwebapps--build-install--packaging">ffwebapps — Build, Install &amp; Packaging</h1>
+
+<p>This page documents how ffwebapps is built and installed: the cargo features and binaries, the one-time runtime link step, the on-disk footprint, and the Arch package that wires it all together.</p>
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#1-requirements">Requirements</a></li>
+<li><a href="#2-the-crate-and-its-features">The crate and its features</a></li>
+<li><a href="#3-building-from-source">Building from source</a></li>
+<li><a href="#4-the-runtime-link-step">The runtime link step</a></li>
+<li><a href="#5-the-installed-footprint">The installed footprint</a></li>
+<li><a href="#6-the-arch-package">The Arch package</a></li>
+<li><a href="#7-completions-and-the-build-script">Completions and the build script</a></li>
+<li><a href="#8-development-checkout">Development checkout</a></li>
+</ol>
+
+
+<hr />
+
+<h2 id="1-requirements">1. Requirements</h2>
+
+<table>
+<thead>
+<tr>
+<th> Requirement </th>
+<th> Why </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <strong>Firefox ≥ 151</strong> </td>
+<td> Provides the Web Apps / Taskbar Tabs modules; used as the linked runtime </td>
+</tr>
+<tr>
+<td> <strong>Rust / Cargo</strong> </td>
+<td> To build the binaries </td>
+</tr>
+<tr>
+<td> <strong>GTK4 + libadwaita + GtkSourceView 5</strong> </td>
+<td> Only for the <code>ffwebapps-gtk</code> management GUI </td>
+</tr>
+<tr>
+<td> <strong>KDE Plasma (KWin, <code>qdbus6</code>)</strong> </td>
+<td> Tray hide/show and window control currently target KWin </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The CLI and tray themselves only need Firefox; the GTK deps are pulled in only when you build the GUI. On other desktops the tray icon appears but hide/restore won&rsquo;t work yet, since that path targets KWin.</p>
+
+<h2 id="2-the-crate-and-its-features">2. The crate and its features</h2>
+
+<p>The whole project is one crate (<code>firefoxpwa</code>) producing four binaries. Cargo features gate the optional pieces (<code>Cargo.toml:22-35</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Feature </th>
+<th> Effect </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>gui</code> </td>
+<td> Builds <code>ffwebapps-gtk</code>; pulls in <code>gtk4</code>, <code>libadwaita</code>, <code>async-channel</code>, <code>sourceview5</code> </td>
+</tr>
+<tr>
+<td> <code>static</code> </td>
+<td> Vendored TLS and static <code>xz2</code> for a self-contained build </td>
+</tr>
+<tr>
+<td> <code>immutable-runtime</code> </td>
+<td> Compiles out <code>runtime install</code>/<code>uninstall</code> (for a system-managed runtime) </td>
+</tr>
+<tr>
+<td> <code>portable</code> </td>
+<td> Portable-install support (Windows-oriented) </td>
+</tr>
+</tbody>
+</table>
+
+
+<table>
+<thead>
+<tr>
+<th> Binary </th>
+<th> Built by </th>
+<th> Role </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>ffwebapps</code> </td>
+<td> default </td>
+<td> The CLI </td>
+</tr>
+<tr>
+<td> <code>ffwebapps-tray</code> </td>
+<td> default </td>
+<td> The tray helper </td>
+</tr>
+<tr>
+<td> <code>ffwebapps-gtk</code> </td>
+<td> <code>--features gui</code> </td>
+<td> The management GUI </td>
+</tr>
+<tr>
+<td> <code>firefoxpwa-connector</code> </td>
+<td> default </td>
+<td> Inherited native-messaging host (not used by the CLI flow) </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The release profile is tuned for size and speed — <code>lto = true</code>, <code>codegen-units = 1</code> (<code>Cargo.toml:18-20</code>).</p>
+
+<h2 id="3-building-from-source">3. Building from source</h2>
+
+<p>The CLI binaries and the GUI are built in two separate invocations, deliberately, so the CLI binaries don&rsquo;t link GTK:</p>
+
+<pre><code class="language-bash code-block">
+# CLI + tray (no GTK)
+cargo build --release --bin ffwebapps --bin ffwebapps-tray
+
+# Management GUI (pulls in gtk4 + libadwaita)
+cargo build --release --features gui --bin ffwebapps-gtk
+</code></pre>
+
+
+<p>Then put <code>ffwebapps</code> and <code>ffwebapps-tray</code> on your <code>PATH</code>, and copy <code>./userchrome</code> to <code>/usr/share/ffwebapps/userchrome</code> (or point <code>FFPWA_SYSDATA</code> at the in-tree copy). The <code>userchrome</code> bundle is required — it carries the autoconfig and the chromeless CSS the runtime needs (see <a href="runtime.gen.html">The Firefox Runtime &amp; Autoconfig</a>).</p>
+
+<h2 id="4-the-runtime-link-step">4. The runtime link step</h2>
+
+<p>Before installing any app, link your system Firefox as the runtime:</p>
+
+<pre><code class="language-bash code-block">
+ffwebapps runtime install --link
+</code></pre>
+
+
+<p>On Linux this is the recommended mode: instead of downloading a second copy of Firefox, it symlinks the system install into <code>~/.local/share/ffwebapps/runtime/</code> (copying only <code>firefox</code> and <code>firefox-bin</code> as real files) and records <code>use_linked_runtime = true</code>. The runtime then tracks your distro&rsquo;s Firefox updates and costs only a few hundred KB. The alternative, <code>runtime install</code> without <code>--link</code>, downloads an official Mozilla build instead.</p>
+
+<p>Installing an app is then a single command:</p>
+
+<pre><code class="language-bash code-block">
+ffwebapps site install &lt;MANIFEST_URL&gt; --document-url &lt;PAGE_URL&gt; --name "App Name"
+</code></pre>
+
+
+<p>It appears in your application menu as a chromeless window with a tray icon. The full command surface is in <a href="cli.gen.html">CLI &amp; Command Model</a>.</p>
+
+<h2 id="5-the-installed-footprint">5. The installed footprint</h2>
+
+<p>A system install (via the package) places files in standard locations:</p>
+
+<table>
+<thead>
+<tr>
+<th> Path </th>
+<th> Contents </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>/usr/bin/ffwebapps</code>, <code>ffwebapps-tray</code>, <code>ffwebapps-gtk</code> </td>
+<td> The three binaries </td>
+</tr>
+<tr>
+<td> <code>/usr/share/ffwebapps/userchrome/</code> </td>
+<td> The autoconfig + chromeless CSS bundle (<code>sysdata</code>) </td>
+</tr>
+<tr>
+<td> <code>/usr/share/applications/io.github.nine7nine.ffwebapps.desktop</code> </td>
+<td> The GUI&rsquo;s own launcher </td>
+</tr>
+<tr>
+<td> <code>/usr/share/icons/hicolor/&lt;size&gt;/apps/io.github.nine7nine.ffwebapps.*</code> </td>
+<td> The GUI&rsquo;s icon (SVG + 16–256 PNGs) </td>
+</tr>
+<tr>
+<td> <code>/usr/share/bash-completion/…</code>, <code>fish/…</code>, <code>zsh/…</code> </td>
+<td> Shell completions </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Per-user state — <code>config.json</code>, profiles, the linked runtime, app launchers, and icons — lives under <code>~/.local/share/ffwebapps/</code> and the XDG dirs, never in <code>/usr</code> (see <a href="data-model.gen.html">Data Model &amp; Storage</a>).</p>
+
+<h2 id="6-the-arch-package">6. The Arch package</h2>
+
+<p><code>packages/arch/PKGBUILD</code> is a VCS package that builds the current commit. Its shape captures the whole install in one place:</p>
+
+<ul>
+<li><strong><code>depends</code></strong>: <code>firefox</code>, <code>gtk4</code>, <code>libadwaita</code>, <code>gtksourceview5</code>.</li>
+<li><strong><code>optdepends</code></strong>: <code>qt6-tools</code> (for <code>qdbus6</code>) and <code>plasma-workspace</code> — the KDE tray and KWin control.</li>
+<li><strong><code>build()</code></strong>: the same two-invocation build as above (CLI binaries, then the <code>gui</code> feature).</li>
+<li><strong><code>package()</code></strong>: installs the three binaries, the GUI launcher + icon set, the <code>userchrome</code> bundle into <code>/usr/share/ffwebapps</code>, the completions, and the license.</li>
+</ul>
+
+
+<pre><code class="language-bash code-block">
+cd packages/arch
+makepkg -si
+</code></pre>
+
+
+<p>The PKGBUILD ships both a scalable SVG icon <em>and</em> rasterized 16–256 PNGs for the GUI, because KDE&rsquo;s Qt SVG renderer is picky and the fixed-size PNGs always load. After installing or upgrading, existing apps should be re-run through <code>site update</code> (with <code>--no-manifest-updates --no-icon-updates</code> to avoid network) so their <code>.desktop</code> <code>Exec</code> lines point at <code>/usr/bin</code> and their KWin rules are refreshed — mixed binary locations are a known source of &ldquo;relaunch after quit&rdquo; bugs.</p>
+
+<h2 id="7-completions-and-the-build-script">7. Completions and the build script</h2>
+
+<p><code>build.rs</code> does two jobs at compile time:</p>
+
+<ol>
+<li><strong>Shell completions</strong> — it reflects over the clap <code>App</code> definition and generates Bash, Elvish, Fish, PowerShell, and Zsh completions into <code>target/release/completions/</code>, which the package then installs. Completions therefore always match the actual command tree.</li>
+<li><strong>cfg aliases</strong> — it defines <code>platform_linux</code> / <code>platform_macos</code> / <code>platform_windows</code> / <code>platform_bsd</code> via <code>cfg_aliases</code>, the predicates the source uses to gate platform-specific code (<code>directories.rs</code>, <code>runtime.rs</code>, <code>integrations/</code>).</li>
+</ol>
+
+
+<h2 id="8-development-checkout">8. Development checkout</h2>
+
+<p>ffwebapps supports running from a repo checkout without touching <code>/usr</code>, via the <code>FFPWA_*</code> environment overrides (<code>directories.rs</code>):</p>
+
+<table>
+<thead>
+<tr>
+<th> Variable </th>
+<th> Points at </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> <code>FFPWA_SYSDATA</code> </td>
+<td> An in-tree <code>userchrome/</code> instead of <code>/usr/share/ffwebapps</code> </td>
+</tr>
+<tr>
+<td> <code>FFPWA_USERDATA</code> </td>
+<td> A scratch data dir instead of <code>~/.local/share/ffwebapps</code> </td>
+</tr>
+<tr>
+<td> <code>FFPWA_EXECUTABLES</code> </td>
+<td> The directory holding the built binaries </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>When integration writes a <code>.desktop</code> launcher for a non-standard install, it bakes these overrides into the <code>Exec</code> line so the launched binary finds its data (see <a href="desktop-integration.gen.html">Desktop Integration</a>). The project&rsquo;s stated working style favours a single installed version over churn: build and install once, then launch and test the real installed binaries rather than running mixed debug/release copies against a live session.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>
