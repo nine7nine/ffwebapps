@@ -13,6 +13,14 @@ It's a CLI-driven fork of [PWAsForFirefox](https://github.com/filips123/PWAsForF
 native component, re-architected to drive Firefox's built-in Web Apps support
 instead of patching the browser chrome at runtime.
 
+## Documentation
+
+📖 **[nine7nine.github.io/ffwebapps](https://nine7nine.github.io/ffwebapps/)** —
+architectural and technical reference, with diagrams: the runtime &amp; autoconfig,
+the IPC protocol and runtime-owned window, the data model, link routing, the
+tray, the GTK GUI, desktop integration, performance tuning, and packaging. The
+sources live in [`docs/`](docs/) and build with `cd docs && ./md2html.sh`.
+
 ## Features
 
 - **Chromeless window** — no tabs, no address bar; a dark, app-styled titlebar
