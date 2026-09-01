@@ -69,6 +69,21 @@ impl SiteIds {
     }
 }
 
+/// The Wayland `app_id` (and X11 WM class) of a web app's taskbar-tab window.
+///
+/// Firefox derives it from its remoting name plus the web app's UUID, as
+/// `<MOZ_APP_REMOTINGNAME>.webapp-<webapp_id>`. We set a unique remoting name
+/// per app (see `Site::runtime_env`), so anything claiming to match the window
+/// has to track that override: the stock `org.mozilla.firefox` prefix only
+/// holds for a runtime launched without one, and a launcher or KWin rule that
+/// hardcodes it silently never matches -- no grouping, no icon.
+///
+/// Derived in one place so the launcher's `StartupWMClass` and the KWin rule's
+/// `wmclass` cannot drift apart again.
+fn taskbar_tab_app_id(site: &Site, webapp_id: impl std::fmt::Display) -> String {
+    format!("ffwebapps-{ulid}.webapp-{webapp_id}", ulid = site.ulid)
+}
+
 /// Obtain and process icons from the icon list.
 ///
 /// All supported icons from the icon list are downloaded and stored to
@@ -220,11 +235,11 @@ fn create_desktop_entry(
     let directory = data.join("applications");
     let filename = directory.join(format!("{}.desktop", ids.classid));
 
-    // The taskbar-tab window's Wayland app_id / WM class is derived from the web
-    // app's UUID; the launcher's StartupWMClass must match it so the window groups
-    // under this entry and shows its icon.
+    // The launcher's StartupWMClass must equal the taskbar-tab window's actual
+    // app_id, or the window never groups under this entry and falls back to a
+    // generic icon.
     let wmclass = match args.site.config.webapp_id {
-        Some(id) => format!("org.mozilla.firefox.webapp-{id}"),
+        Some(id) => taskbar_tab_app_id(args.site, id),
         None => ids.classid.clone(),
     };
 
@@ -423,7 +438,7 @@ fn write_kwin_rule(config: &Path, site: &Site, classid: &str, install: bool) -> 
                     sanitize_string(&site.name())
                 ),
                 "positionrule=4".to_string(),
-                format!("wmclass=org.mozilla.firefox.webapp-{webapp_id}"),
+                format!("wmclass={}", taskbar_tab_app_id(site, webapp_id)),
                 "wmclassmatch=1".to_string(),
                 "types=1".to_string(),
             ],

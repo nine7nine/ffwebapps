@@ -95,7 +95,7 @@ pub struct SiteConfig {
     /// Stable per-app identifier for Firefox's first-party Web Apps
     /// (Taskbar Tabs) registry. Generated when the web app is installed.
     ///
-    /// Also used as the Wayland `app_id` (`org.mozilla.firefox.webapp-<id>`)
+    /// Also used as the Wayland `app_id` (`ffwebapps-<site ulid>.webapp-<id>`)
     /// and the `.desktop` `StartupWMClass`.
     #[serde(default)]
     pub webapp_id: Option<uuid::Uuid>,

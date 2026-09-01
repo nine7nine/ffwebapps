@@ -4,7 +4,8 @@
 //! built-in Web Apps infrastructure: a per-app entry in
 //! `<profile>/taskbartabs/taskbartabs.json` plus launching the runtime with
 //! `-taskbar-tab <id>` produces a self-contained app window with its own
-//! Wayland `app_id` (`org.mozilla.firefox.webapp-<id>`).
+//! Wayland `app_id` (`ffwebapps-<site ulid>.webapp-<id>`; the prefix is the
+//! per-app `MOZ_APP_REMOTINGNAME`, not the stock Firefox one).
 //!
 //! The JSON shape must match Firefox's `TaskbarTabs.1.schema.json`, which is
 //! validated on every load/save by the browser.
