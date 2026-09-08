@@ -142,3 +142,53 @@
 :root[taskbartab] #urlbar-revert-button-container {
   display: none !important;
 }
+
+/* ── Pop-out popups: chromeless, with an overlaid drag region ────────────────
+ *
+ * `window.open()` from an app page (e.g. the injected pop-out that moves
+ * NinjaOne's PowerShell terminal into its own window) opens a browser popup,
+ * not a taskbar-tab window — so none of the `[taskbartab]` rules above apply and
+ * it renders with a full read-only address bar, star and app menu on top of
+ * content that usually has chrome of its own.
+ *
+ * Strip all of it, but keep #navigator-toolbox alive as an invisible drag
+ * handle. On Wayland a client cannot position its own window — window.moveTo()
+ * is a no-op and a content <div> can never start a move — so the ONLY way to
+ * drag such a window is a chrome region with `-moz-window-dragging: drag`,
+ * which goes through xdg_toplevel.move. Taking the toolbox out of flow lets
+ * #browser fill the window from y=0, and the toolbox then floats over the top
+ * of the content: over the page's own titlebar. Dragging that titlebar moves
+ * the real window.
+ *
+ * The right-hand inset leaves the page's own titlebar buttons (close, copy,
+ * download …) uncovered and clickable. Tune the two values to the app: they are
+ * the height of the page's titlebar and the width of its button cluster.
+ *
+ * NOTE: this also strips the address bar from SSO/auth popups in app profiles,
+ * which removes the visual origin check those windows normally provide. If you
+ * would rather keep it, delete this whole section. */
+:root:not([taskbartab]) {
+  --ffwa-popup-drag-height: 40px;
+  --ffwa-popup-drag-inset: 210px;
+}
+
+:root:not([taskbartab]) #navigator-toolbox {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: var(--ffwa-popup-drag-inset) !important;
+  height: var(--ffwa-popup-drag-height) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  z-index: 2 !important;
+  -moz-window-dragging: drag !important;
+}
+
+/* Nothing inside it should render — only the invisible drag region remains. */
+:root:not([taskbartab]) #navigator-toolbox > * {
+  display: none !important;
+}
