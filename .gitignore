@@ -14,3 +14,8 @@
 
 # Core dumps (core.<pid>); narrowed so it doesn't swallow sources like core.rs
 core.[0-9]*
+
+# Claude Code session state and handoff notes (local only)
+.claude/
+HANDOFF.md
+HANDOFF-GUI.md
