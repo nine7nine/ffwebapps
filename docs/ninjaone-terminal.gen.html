@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NinjaOne as a Web App, with a Pop-Out Terminal</title>
+<style>
+  :root {
+    --bg: #1a1b26; --fg: #c0caf5; --accent: #7aa2f7;
+    --green: #9ece6a; --red: #f7768e; --yellow: #e0af68;
+    --surface: #24283b; --border: #3b4261; --muted: #8c92b3;
+    --purple: #bb9af7; --orange: #ff9e64; --cyan: #7dcfff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+    background: var(--bg); color: var(--fg);
+    max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem;
+    line-height: 1.7;
+  }
+  .page-nav {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+  .page-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(36, 40, 59, 0.9);
+    color: var(--accent);
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+  .page-nav a:hover {
+    background: var(--surface);
+    color: var(--cyan);
+    text-decoration: none;
+  }
+  h1 { color: var(--accent); font-size: 1.5rem; margin: 1.5rem 0 0.5rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; margin: 2rem 0 0.75rem;
+       border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { color: var(--yellow); font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+  h4 { color: var(--cyan); font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+  p, li { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  ul, ol { padding-left: 1.5rem; margin-bottom: 0.75rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  table {
+    width: 100%; border-collapse: collapse;
+    margin: 0.75rem 0 1rem; font-size: 0.8rem;
+  }
+  th, td {
+    padding: 0.4rem 0.75rem; text-align: left;
+    border: 1px solid var(--border);
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  td { background: var(--bg); }
+  code {
+    background: var(--surface); padding: 0.15rem 0.4rem;
+    border-radius: 3px; font-size: 0.82rem; color: var(--cyan);
+  }
+  pre {
+    background: var(--surface); padding: 1rem 1.1rem; border-radius: 8px;
+    overflow-x: auto; margin: 0.75rem 0 1rem;
+    border: 1px solid var(--border);
+  }
+  pre code {
+    display: block; background: transparent; padding: 0;
+    font-size: 0.8rem; color: inherit;
+  }
+  pre code.hljs,
+  code.hljs {
+    background: transparent;
+    padding: 0;
+  }
+  blockquote {
+    background: var(--surface); border-left: 3px solid var(--accent);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  blockquote strong { color: var(--yellow); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+  strong { color: var(--fg); }
+  em { color: var(--muted); font-style: italic; }
+  .diagram-container {
+    display: flex; justify-content: center;
+    margin: 1.25rem auto 1.5rem; padding: 0.75rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+    overflow-x: auto;
+  }
+  .diagram-container svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
+    margin: 0 auto;
+    flex: 0 0 auto;
+  }
+  figure.screenshot {
+    margin: 1.25rem auto 1.5rem;
+    padding: 0.6rem;
+    background: rgba(36, 40, 59, 0.55);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  figure.screenshot img {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  figure.screenshot figcaption {
+    color: var(--muted); font-size: 0.78rem;
+    text-align: center; margin-top: 0.5rem;
+  }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+</head><body>
+<div class="page-nav"><a href="index.html">Docs Home</a></div>
+<h1 id="ninjaone-as-a-web-app-with-a-pop-out-terminal">NinjaOne as a Web App, with a Pop-Out Terminal</h1>
+
+<p>A worked example of two ffwebapps features: installing a site that ships <strong>no
+web-app manifest</strong>, and using <strong>per-app JS injection</strong> to restructure the page.</p>
+
+<p>The result is NinjaOne running as a chromeless desktop app whose PowerShell/CMD
+terminal can be popped out into its own borderless window — keeping its live
+session, scrollback and titlebar buttons.</p>
+
+<p>Commands below use the <code>vicinity.rmmservices.net</code> tenant; substitute your own
+host throughout.</p>
+
+<p><strong>Requires:</strong> Firefox >= 151, Rust/Cargo. Steps 6 and 7 are KDE Plasma only.</p>
+
+<hr />
+
+<h2 id="1-build-and-install-ffwebapps">1. Build and install ffwebapps</h2>
+
+<pre><code class="language-bash code-block">
+git clone https://github.com/nine7nine/ffwebapps
+cd ffwebapps
+cargo build --release --bin ffwebapps --bin ffwebapps-tray
+cargo build --release --features gui --bin ffwebapps-gtk
+sudo ./install-to-usr.sh
+</code></pre>
+
+
+<p>Then run the cleanup commands the script prints at the end, <strong>as your normal
+user, not root</strong>.</p>
+
+<h2 id="2-link-the-runtime-one-time">2. Link the runtime (one time)</h2>
+
+<pre><code class="language-bash code-block">
+ffwebapps runtime install --link
+</code></pre>
+
+
+<p>Symlinks your system Firefox as the runtime, so it tracks Firefox updates
+instead of bundling a second copy. Skip if you have used ffwebapps before.</p>
+
+<h2 id="3-re-register-existing-apps">3. Re-register existing apps</h2>
+
+<p>Only if you already had apps installed before this update. The launcher&rsquo;s
+<code>StartupWMClass</code> fix is applied when system integration runs, so existing
+<code>.desktop</code> files keep the old, non-matching class until they are rewritten:</p>
+
+<pre><code class="language-bash code-block">
+for id in $(ffwebapps profile list | grep -oE '\(([0-9A-Z]{26})\)' | tr -d '()'); do
+  ffwebapps site update "$id"
+done
+kbuildsycoca6
+</code></pre>
+
+
+<p>Skip on a fresh install.</p>
+
+<h2 id="4-install-the-app">4. Install the app</h2>
+
+<p>NinjaOne is a plain React SPA. It has no <code>&lt;link rel="manifest"&gt;</code>, and
+<code>/manifest.json</code>, <code>/manifest.webmanifest</code> and <code>/site.webmanifest</code> all 404 — so
+there is no manifest URL to give <code>site install</code>. Supply a <code>data:</code> URL instead,
+which is ffwebapps' route for non-PWA sites. <code>--document-url</code> becomes required
+when the manifest URL is a data URL.</p>
+
+<pre><code class="language-bash code-block">
+MANIFEST=$(python3 &lt;&lt;'PY'
+import base64, json
+h = "https://vicinity.rmmservices.net"
+m = {"name": "Vicinity RMM", "short_name": "Vicinity",
+     "description": "NinjaOne RMM console - Vicinity tenant",
+     "start_url": h + "/", "scope": h + "/", "display": "standalone",
+     "background_color": "#000000", "theme_color": "#00a0c6",
+     "categories": ["utilities", "system"],
+     "icons": [{"src": h + "/img/favicon.png", "sizes": "512x512",
+                "type": "image/png", "purpose": "any"}]}
+print("data:application/manifest+json;base64," +
+      base64.b64encode(json.dumps(m).encode()).decode())
+PY
+)
+
+PROFILE=$(ffwebapps profile create --name "Vicinity RMM" \
+  --description "NinjaOne RMM console (Vicinity tenant)" 2&gt;&amp;1 \
+  | grep -oE '[0-9A-Z]{26}' | tail -1)
+
+SITE=$(ffwebapps site install "$MANIFEST" \
+  --document-url "https://vicinity.rmmservices.net/" \
+  --name "Vicinity RMM" \
+  --description "NinjaOne RMM console (Vicinity tenant)" \
+  --profile "$PROFILE" 2&gt;&amp;1 | grep -oE '[0-9A-Z]{26}' | tail -1)
+
+echo "profile=$PROFILE"
+echo "site=$SITE"
+</code></pre>
+
+
+<p><strong>Record both ULIDs.</strong> They are generated per install and differ between
+machines; step 6 needs the site ULID.</p>
+
+<p><code>/img/favicon.png</code> is a real 512x512 PNG, found in NinjaOne&rsquo;s JS bundle as
+<code>browserIcon</code>. It is the stock NinjaOne mark. A white-labelled tenant icon is
+served base64 from an authenticated <code>/branding</code> endpoint, so to use yours, save
+it from a logged-in tab and then:</p>
+
+<pre><code class="language-bash code-block">
+ffwebapps site update "$SITE" --icon-url file:///path/to/icon.png --update-icons
+</code></pre>
+
+
+<p>The dedicated profile keeps the NinjaOne session isolated from your other web
+apps. Drop <code>--profile</code> to share the default profile instead.</p>
+
+<h2 id="5-install-the-pop-out-script">5. Install the pop-out script</h2>
+
+<pre><code class="language-bash code-block">
+cp examples/ninjaone-terminal-popout.js \
+   ~/.local/share/ffwebapps/profiles/"$PROFILE"/ffwebapps.js
+</code></pre>
+
+
+<p><code>ffwebapps.js</code> in a profile directory is injected into that app&rsquo;s pages in a
+content-principal sandbox at <code>DOMContentLoaded</code>, so it is not subject to the
+page&rsquo;s CSP. It is read once at startup — see the gotcha about restarting below.</p>
+
+<h2 id="6-borderless-pop-out-window-kde">6. Borderless pop-out window (KDE)</h2>
+
+<p>Optional. Without it the pop-out works, but keeps a KDE titlebar above
+NinjaOne&rsquo;s own.</p>
+
+<p>System Settings -> Window Management -> <strong>Window Rules</strong> -> New:</p>
+
+<table>
+<thead>
+<tr>
+<th> Field </th>
+<th> Value </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Window class </td>
+<td> <code>ffwebapps-&lt;your SITE ULID&gt;</code> — <strong>Exact Match</strong> </td>
+</tr>
+<tr>
+<td> Window title </td>
+<td> <code>NinjaOne terminal</code> — <strong>Substring Match</strong> </td>
+</tr>
+<tr>
+<td> No titlebar and frame </td>
+<td> <strong>Force -> Yes</strong> </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>The class here has no <code>.webapp-&lt;uuid&gt;</code> suffix. A <code>window.open</code> popup carries the
+bare <code>MOZ_APP_REMOTINGNAME</code>, unlike the app window, which is what lets this rule
+target the pop-out without also stripping the main window.</p>
+
+<h2 id="7-free-supert-kde">7. Free Super+T (KDE)</h2>
+
+<p>KWin binds <code>Meta+T</code> to &ldquo;Edit Tiles&rdquo; by default, and on Wayland the compositor
+consumes the key before Firefox sees it. Either clear it in System Settings ->
+Shortcuts -> KWin -> Edit Tiles, or skip this and use <strong>Ctrl+Alt+P</strong>, which the
+script also accepts.</p>
+
+<p><code>Ctrl+Alt+T</code> is not available — that is KDE&rsquo;s Konsole shortcut.</p>
+
+<h2 id="8-using-it">8. Using it</h2>
+
+<pre><code class="language-bash code-block">
+ffwebapps site launch "$SITE"
+</code></pre>
+
+
+<p>Or launch <strong>Vicinity RMM</strong> from your application menu. Sign in once; the profile
+is separate from your normal browser, so no session carries over.</p>
+
+<p>Open a device, then PowerShell or CMD. The terminal&rsquo;s titlebar gains a <strong>pop-out
+button</strong> next to NinjaOne&rsquo;s own controls.</p>
+
+<table>
+<thead>
+<tr>
+<th> Action </th>
+<th> Result </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> Pop-out button, or <code>Super+T</code> </td>
+<td> Move the terminal to its own window, or send it back </td>
+</tr>
+<tr>
+<td> <code>X</code> while popped out </td>
+<td> Returns the terminal to the app window </td>
+</tr>
+<tr>
+<td> Drag the terminal&rsquo;s titlebar </td>
+<td> Moves the real window </td>
+</tr>
+<tr>
+<td> <code>Meta</code>+drag </td>
+<td> Moves the window from anywhere on it </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>Copy, keyboard and download all keep working while popped out.</p>
+
+<p><code>X</code> returns the terminal rather than closing it because NinjaOne renders its
+&ldquo;Exit terminal?&rdquo; confirmation into a portal in the <em>app</em> window — so the prompt
+would otherwise appear behind, asking about a terminal you are looking at
+elsewhere. Click <code>X</code> again once it is home to end the session for real.</p>
+
+<hr />
+
+<h2 id="gotchas">Gotchas</h2>
+
+<p><strong>Editing <code>ffwebapps.js</code> requires a full quit.</strong> Right-click the tray icon ->
+Quit. The window&rsquo;s X only hides to tray; the process keeps running and the file
+is read once at startup, so closing and reopening will not pick up an edit.</p>
+
+<p><strong>Do not reuse another machine&rsquo;s ULIDs.</strong> Profile and site ULIDs are generated
+per install.</p>
+
+<p><strong>SSO popups lose their address bar.</strong> The chromeless-popup CSS applies to every
+<code>window.open</code> popup in every ffwebapps app, which removes the visual origin check
+on auth windows. The rule is self-contained and commented at the bottom of
+<code>userchrome/profile/chrome/userChrome.css</code> if you would rather not have it.</p>
+
+<hr />
+
+<h2 id="how-the-pop-out-works">How the pop-out works</h2>
+
+<p>Useful if you want to adapt this to another site. The full script is
+<code>examples/ninjaone-terminal-popout.js</code>.</p>
+
+<p>The terminal is xterm.js in the main document — no iframe — fed by a WebSocket
+that lives in the page&rsquo;s own JS realm. So <code>adoptNode</code> into a popup keeps the
+session and scrollback: the socket never notices. NinjaOne also fixes the grid at
+construction (<code>cols</code> from <code>window.innerWidth</code>: 110 below 1280px, else 120; 30
+rows) and ships no fit addon, so the terminal never reflows and nothing is lost
+by moving it.</p>
+
+<p>Four things are not obvious, and each one produced a distinct failure:</p>
+
+<p><strong>React&rsquo;s event delegation.</strong> React 17+ does not bind <code>onClick</code> to elements. It
+binds one listener set to the root container, and to each portal container, then
+walks its fiber tree from the event target. Move a subtree out from under that
+element and every handler inside goes inert — while listeners bound directly to
+the moved nodes, like xterm&rsquo;s key handling, survive. The terminal kept working
+while its buttons died. The script therefore moves the element React listens on,
+discovered at runtime by looking for React&rsquo;s <code>_reactListening&lt;hash&gt;</code> marker,
+because that container is generated per-modal and has no stable id. It refuses to
+move anything containing the app root.</p>
+
+<p><strong>xterm&rsquo;s visibility check.</strong> xterm suspends <em>all</em> rendering when its screen
+element reports as not intersecting the viewport. That check is an
+<code>IntersectionObserver</code> created in the opener&rsquo;s realm, and a node in another
+document can never intersect it — so the renderer latches paused and keystrokes
+never appear. The script stubs that one observer with a permanent hit, scoped to
+xterm&rsquo;s own elements so the app&rsquo;s lazy-loading keeps its real observers.</p>
+
+<p><strong>Observing the document is a latency trap.</strong> xterm&rsquo;s DOM renderer mutates on
+every rendered frame, so a <code>MutationObserver</code> on <code>documentElement</code> with
+<code>subtree: true</code> fires dozens of times a second. Detecting the terminal that way
+added seconds of input lag — to the embedded terminal as much as the popped-out
+one. The script polls twice a second instead.</p>
+
+<p><strong>Wayland forbids client positioning.</strong> <code>window.moveTo()</code> is a no-op and a
+content node can never start a window move, so a page element cannot be a drag
+handle. The only region that can is browser chrome with
+<code>-moz-window-dragging: drag</code>, which goes through <code>xdg_toplevel.move</code>. The
+userChrome rules take <code>#navigator-toolbox</code> out of flow and float it, invisible,
+over the page&rsquo;s own titlebar — so dragging that titlebar moves the real window.
+Resizing a window <em>is</em> permitted, which is how the pop-out trims itself to the
+terminal&rsquo;s exact height.</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("pre code").forEach(function (block) {
+    hljs.highlightElement(block);
+  });
+});
+</script>
+</body></html>
